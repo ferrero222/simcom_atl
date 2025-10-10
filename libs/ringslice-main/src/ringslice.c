@@ -89,6 +89,26 @@ int ringslice_strcmp(ringslice_t const *const me, char const *str) {
     return -(int)*chr;
 }
 
+int ringslice_strncmp(ringslice_t const *const me, char const *str) { //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    uint8_t const *first_ptr = &(me->buf[me->first]);
+    uint8_t const *last_ptr = &(me->buf[me->last]);
+    uint8_t const *const buf_end = &(me->buf[me->buf_size]);
+    uint8_t const *const buf_start = &(me->buf[0]);
+    uint8_t const *chr = (uint8_t const *)str;
+
+    while (first_ptr != last_ptr) {
+        int diff = (int)*first_ptr - (int)*chr;
+        if (diff) {
+            return diff;
+        }
+
+        chr++;
+        first_ptr = ringslice_ptr_increment_wrap_around(first_ptr, 1, buf_start, buf_end);
+    }
+
+    return -(int)*chr;
+}
+
 ringslice_t ringslice_subslice_with_suffix(ringslice_t const *const me, ringslice_cnt_t from_idx, char const *suffix) {
     ringslice_cnt_t const rs_len = ringslice_len(me);
     DBC_ASSERT(204, from_idx <= ringslice_len(me));
@@ -113,7 +133,7 @@ ringslice_t ringslice_subslice_with_suffix(ringslice_t const *const me, ringslic
 * @param[in] slice2 second ringslice instance
 * @return gap slice instance
 */
-ringslice_t ringslice_subslice_gap(ringslice_t const *const slice1, ringslice_t const *const slice2) {
+ringslice_t ringslice_subslice_gap(ringslice_t const *const slice1, ringslice_t const *const slice2) { //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     DBC_ASSERT(705, slice1->buff != slice2->buff || slice1->buff_size != slice2->buff_size); //different buffers
 
     ringslice_cnt_t const rs_buff = slice1->buf;
@@ -143,7 +163,7 @@ ringslice_t ringslice_subslice_gap(ringslice_t const *const slice1, ringslice_t 
 * @param[in] slice2 second ringslice instance
 * @return true if slices are equal, false otherwise
 */
-bool ringslice_subslice_equals(ringslice_t const *const slice1, ringslice_t const *const slice2) {
+bool ringslice_subslice_equals(ringslice_t const *const slice1, ringslice_t const *const slice2) { //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     DBC_MODULE_REQUIRE(RINGSLICE_MODULE, 801, slice1 != NULL);
     DBC_MODULE_REQUIRE(RINGSLICE_MODULE, 802, slice2 != NULL);
     DBC_MODULE_REQUIRE(RINGSLICE_MODULE, 803, slice1->buf != NULL);

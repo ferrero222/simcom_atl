@@ -272,7 +272,7 @@ RINGSLICE_INLINE ringslice_t ringslice_subslice(ringslice_t const * const me, ri
     or first on error.
 *
 */
-RINGSLICE_INLINE ringslice_t ringslice_subslice_after(ringslice_t const *const subslice, ringslice_t const *const me, const ringslice_cnt_t len) {
+RINGSLICE_INLINE ringslice_t ringslice_subslice_after(ringslice_t const *const subslice, ringslice_t const *const me, const ringslice_cnt_t len) { //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   DBC_MODULE_REQUIRE(RINGSLICE_MODULE, 202, subslice->buf == me->buf);
   DBC_MODULE_REQUIRE(RINGSLICE_MODULE, 203, subslice->buf_size == me->buf_size);
   if(len) DBC_MODULE_REQUIRE(RINGSLICE_MODULE, 204, len < subslice->buf_size);
@@ -292,7 +292,7 @@ RINGSLICE_INLINE ringslice_t ringslice_subslice_after(ringslice_t const *const s
 */
 RINGSLICE_INLINE ringslice_t ringslice_subslice_get_content(ringslice_t const *const subslice, uint8_t* const dst, const ringslice_cnt_t dst_size) {
   for(uint8_t i = 0; i < ringslice_len(subslice); ++i){
-    dst[i] = subslice->buf[(subslice->first +i) % subslice->buf_size]; //СДЕЛАТЬ ЧТОБЫ ПИСАЛОСЬ ТОЛЬКО СТОЛЬКО СКОЛЬКО ПОМЕЩАЕТСЯ В БУФЕР ИЛИ ВЕРНУТЬ ОШИБКУ
+    dst[i] = subslice->buf[(subslice->first +i) % subslice->buf_size]; //СДЕЛАТЬ ЧТОБЫ ПИСАЛОСЬ ТОЛЬКО СТОЛЬКО СКОЛЬКО ПОМЕЩАЕТСЯ В БУФЕР ИЛИ ВЕРНУТЬ ОШИБКУ //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   }
 }
 
@@ -307,6 +307,18 @@ RINGSLICE_INLINE ringslice_t ringslice_subslice_get_content(ringslice_t const *c
 *
 */
 int ringslice_strcmp(ringslice_t const * const me, char const * str);
+
+/*!
+* Compares ringslice instance with string lexicographically
+* @param[in] me ringslice instance which is compared with string
+* @param[in] str string for compare
+*
+* @return 0 if are equal,
+*   negative value if ringslice appears before str in lexicographical order,
+*   positive value if ringslice appears after str in lexicographical order
+*
+*/
+int ringslice_strncmp(ringslice_t const * const me, char const * str); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 /*!
 * Searches for substring in ringslice instance
@@ -352,7 +364,7 @@ int ringslice_scanf(ringslice_t const * const rs, const char *fmt, ...);
 * @param[in] slice2 second ringslice instance
 * @return gap slice instance
 */
-ringslice_t ringslice_subslice_gap(ringslice_t const *const slice1, ringslice_t const *const slice2);
+ringslice_t ringslice_subslice_gap(ringslice_t const *const slice1, ringslice_t const *const slice2); //!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /*!
@@ -361,7 +373,7 @@ ringslice_t ringslice_subslice_gap(ringslice_t const *const slice1, ringslice_t 
 * @param[in] slice2 second ringslice instance
 * @return true if slices are equal, false otherwise
 */
-bool ringslice_equals(ringslice_t const *const slice1, ringslice_t const *const slice2);
+bool ringslice_equals(ringslice_t const *const slice1, ringslice_t const *const slice2); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 /*!
 * @}

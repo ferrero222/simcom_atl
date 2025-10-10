@@ -28,7 +28,7 @@
 /*******************************************************************************
  * Local types definitions
  ******************************************************************************/
-typedef void (*atl_rtd_cb_t)(bool result, atl_mdl_rtd_t* rtd);        //at cmd group callback type
+typedef void (*atl_rtd_cb_t)(bool result, atl_mdl_rtd_t* rtd); //at cmd group callback type
 
 typedef struct modem_lbs_t {
   int cell;
@@ -57,5 +57,29 @@ typedef struct atl_mdl_rtd_t {
 /*******************************************************************************
  * Function implementation - global ('extern') and local ('static')
  ******************************************************************************/
+/*******************************************************************************
+ ** \brief  Function to restart the modem
+ ** \param  cb  cb when proc will be done
+ ** \retval true - proc started, false - smthg is wrong
+ ******************************************************************************/
+bool atl_mdl_modem_reset(atl_entity_cb_t cb);
+
+/*******************************************************************************
+ ** \brief  Function to init modem
+ ** \param  cb  cb when proc will be done
+ ** \retval true - proc started, false - smthg is wrong
+ ******************************************************************************/
+bool atl_mdl_modem_init(atl_entity_cb_t cb);
+
+/*******************************************************************************
+ ** \brief  Function to get real time data info about modem. This function
+ **         creates an instance of @atl_mdl_rtd_t in atl heap and then pass
+ **         that instance to your callback. When callback execution will be done 
+ **         instance will be free, so if you need that for longer time just
+ **         do copy.
+ ** \param  cb  cb when proc will be done. 
+ ** \retval true - proc started, false - smthg is wrong
+ ******************************************************************************/
+bool atl_mdl_rtd(atl_rtd_cb_t cb);
 
  #endif //__ATL_MDL_GENERAL_IMPL_H 

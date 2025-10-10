@@ -36,13 +36,15 @@
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
 #define ATL_CMD_SAVE_PATTERN     "SAVE:"
-
 #define ATL_CMD_CRLF             "\x0d\x0a"
 #define ATL_CMD_CR               '\x0d'
 #define ATL_CMD_LF               '\x0a'
 #define ATL_CMD_CTRL_Z           "\x1a"
+#define ATL_CMD_OK               ATL_CMD_CRLF"OK"ATL_CMD_CRLF
+#define ATL_CMD_ERROR            ATL_CMD_CRLF"ERROR"ATL_CMD_CRLF
 
 #define ATL_ITEM_SIZE            sizeof(atl_item_t)
+#define ATL_URC_SIZE             sizeof(atl_urc_t)
 
 #if ATL_DEBUG_ENABLED
 #define ATL_DEBUG(fmt, ...) do { \
@@ -54,30 +56,18 @@
 #define ATL_DEBUG(fmt, ...) ((void)0)
 #endif
 
-
-#define ATL_ITEM(req, prefix, callback, retries, timeout, err_step, ok_step) \
+#define ATL_ITEM(req, prefix, format, retries, timeout, err_step, ok_step, cb, ...) \
 { \
-    .req = req, \
-    .prefix = prefix, \
-    .answ_data.cb = callback, \
-    .meta.rpt_cnt = retries, \
-    .meta.wait = timeout, \
-    .meta.err_step = err_step, \
-    .meta.ok_step = ok_step, \
-    .meta.type = 1  \
-}
-
-#define ATL_ITEM_EXT(req, prefix, format, retries, timeout, err_step, ok_step, ...) \
-{ \
-    .req = req, \
-    .prefix = prefix, \
-    .answ_data.format_data.format = format, \
-    .answ_data.format_data.ptrs = (void*[]){__VA_ARGS__, NULL}, \
-    .meta.rpt_cnt = retries, \
-    .meta.wait = timeout, \
-    .meta.err_step = err_step, \
-    .meta.ok_step = ok_step, \
-    .meta.type = 0 \
+  .req = req, \
+  .answ.prefix = prefix, \
+  .answ.format_data.format = format, \
+  .answ.format_data.ptrs = (void*[]){__VA_ARGS__, NULL}, \
+  .answ.cb = cb, \
+  .meta.rpt_cnt = retries, \
+  .meta.wait = timeout, \
+  .meta.err_step = err_step, \
+  .meta.ok_step = ok_step, \
+  .meta.type = 0 \
 }
 
 #define ATL_CRITICAL_ENTER  atl_critical_enter();
@@ -86,7 +76,7 @@
 /*******************************************************************************
  * Global type definitions ('typedef')
  ******************************************************************************/
-typedef void (*answ_parce_cb_t)(ringslice_t data_slice); 
+typedef void (*answ_parce_cb_t)(ringslice_t data_slice, int result); 
 
 typedef struct atl_urc_t{
   char* prefix;
@@ -96,25 +86,18 @@ typedef struct atl_urc_t{
 typedef struct atl_item_t
 {
   char* req;
-  const char *prefix;
-  
-  union {
-    struct {
-      const char *format;
-      void **ptrs;
-    } format_data;
+  struct{
+    const char *prefix;
+    const char *format;
+    void **ptrs;
     answ_parce_cb_t cb;
-  } answ_data;
-  
+  } answ;
   struct {
     uint16_t wait     : 12;  // wait time (0-4095)
-    uint8_t  rpt_cnt  : 4;   // repeat counter (0-15)
-    uint8_t  err_step : 4;   // error step (0-15)  
-    uint8_t  ok_step  : 4;   // success step (0-15)
-    uint8_t  type     : 1;   // 0=simple, 1=cb
-    uint8_t           : 7;   // резерв
+    uint8_t  rpt_cnt  : 4;   // repeat counter (-8 to 7)
+    int8_t   err_step : 4;   // error step (-8 to 7)  
+    int8_t   ok_step  : 4;   // success step (-8 to 7)
   } meta;
-
 } atl_item_t;
 
 /*******************************************************************************
@@ -136,7 +119,11 @@ typedef struct atl_user_init_t{
   atl_printf atl_printf;
   atl_write atl_write;
   tlsf_t atl_tlfs;
-} atl_user_init_t;
+  uint8_t* ring; 
+  uint16_t ring_len; 
+  uint16_t* ring_tail; 
+  uint16_t* ring_head;
+} atl_init_t;
 
 typedef struct {
   atl_item_t*       item;
@@ -153,13 +140,6 @@ typedef struct {
   uint8_t entity_tail;
   uint8_t entity_cnt;
 } atl_entity_queue_t;
-
-typedef struct {
-  atl_urc_t urc[ATL_URC_QUEUE_SIZE];
-  uint8_t urc_head;
-  uint8_t urc_tail;
-  uint8_t urc_cnt;
-} atl_urc_queue_t;
 
 /*******************************************************************************
  * Global variable definitions ('extern')
@@ -189,6 +169,13 @@ void atl_init(const atl_printf atl_printf, const atl_write atl_write, const uint
 void atl_deinit(void);
 
 /*******************************************************************************
+ ** \brief  Function to get lib init status
+ ** \param  none
+ ** \retval true/false
+ ******************************************************************************/
+bool atl_is_init(void);
+
+/*******************************************************************************
  ** \brief  Function to append main queue with new group of at cmds
  ** \param  item         ptr to your group of at cmds.
  ** \param  item_amount  amount  of your at cms in group 
@@ -205,11 +192,45 @@ bool atl_enqueue(const atl_item_t* const item, const uint8_t item_amount, const 
 bool atl_dequeue(void);
 
 /*******************************************************************************
+ ** \brief  Function to append URC queue
+ ** \param  urc  ptr to your URC.
+ ** \retval ture/false
+ ******************************************************************************/
+bool atl_urc_enqueue(const atl_urc_t* const urc);
+
+/*******************************************************************************
+ ** \brief  Function to delete URC from queue
+ ** \param  urc  ptr to your URC.
+ ** \retval ture/false
+ ******************************************************************************/
+bool atl_urc_dequeue(const atl_urc_t* const urc);
+
+/*******************************************************************************
  ** \brief  Function to proc ATL core proccesses. 
  ** \param  none
  ** \retval none
  ******************************************************************************/
 void atl_entity_proc(void);
 
+/*******************************************************************************
+ ** \brief  DBC fault override
+ ** \param  none
+ ** \retval none
+ ******************************************************************************/
+__attribute__((weak)) DBC_NORETURN void DBC_fault_handler(char const * module, int label);
+
+/*******************************************************************************
+ ** \brief  Weak function to enter into critical section
+ ** \param  none
+ ** \retval none
+ ******************************************************************************/
+__attribute__((weak)) void atl_crit_enter(void);
+
+/*******************************************************************************
+ ** \brief  Weak function to exit critical section
+ ** \param  none
+ ** \retval none
+ ******************************************************************************/
+__attribute__((weak)) void atl_crit_exit(void);
 
 #endif //__ATL_H

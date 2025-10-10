@@ -9,14 +9,16 @@
 /*******************************************************************************
  * Include files
  ******************************************************************************/
-#include "atl_core_impl.h"
+#include "atl_core.h"
 #include "atl_core_scheduler.h"
-#include "atl_mdl_general_impl.h"
+#include "atl_mdl_general.h"
 #include "dbc_assert.h"
 
 /*******************************************************************************
  * Local pre-processor symbols/macros ('#define')
  ******************************************************************************/
+DBC_MODULE_NAME("ATL_MDL_GENERAL");
+
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
  ******************************************************************************/
@@ -33,9 +35,9 @@
  * Function implementation - global ('extern') and local ('static')
  ******************************************************************************/
 /*******************************************************************************
- ** \brief  None
- ** \param  None
- ** \retval None
+ ** \brief  Function to restart the modem
+ ** \param  cb  cb when proc will be done
+ ** \retval true - proc started, false - smthg is wrong
  ******************************************************************************/
 bool atl_mdl_modem_reset(atl_entity_cb_t cb)
 {
@@ -52,9 +54,9 @@ bool atl_mdl_modem_reset(atl_entity_cb_t cb)
 }
 
 /*******************************************************************************
- ** \brief  None
- ** \param  None
- ** \retval None
+ ** \brief  Function to init modem
+ ** \param  cb  cb when proc will be done
+ ** \retval true - proc started, false - smthg is wrong
  ******************************************************************************/
 bool atl_mdl_modem_init(atl_entity_cb_t cb)
 {
@@ -81,16 +83,20 @@ bool atl_mdl_modem_init(atl_entity_cb_t cb)
 }
 
 /*******************************************************************************
- ** \brief  None
- ** \param  None
- ** \retval None
+ ** \brief  Function to get real time data info about modem. This function
+ **         creates an instance of @atl_mdl_rtd_t in atl heap and then pass
+ **         that instance to your callback. When callback execution will be done 
+ **         instance will be free, so if you need that for longer time just
+ **         do copy.
+ ** \param  cb  cb when proc will be done. 
+ ** \retval true - proc started, false - smthg is wrong
  ******************************************************************************/
 static atl_mdl_rtd_t* atl_rtd = NULL;
 static atl_rtd_cb_t atl_mdl_rtd_user_cb = NULL;
 
 bool atl_mdl_rtd(atl_rtd_cb_t cb)
 {
-  DBC_REQUIRE(300, atl_user_init.init);
+  DBC_REQUIRE(101, atl_is_init());
   bool result = false;
   atl_rtd = tlsf_malloc(atl_user_init.atl_tlsf, atl_mdl_rtd_t);
   if(!atl_rtd) 
@@ -159,7 +165,7 @@ bool atl_mdl_rtd(atl_rtd_cb_t cb)
 }
 
 /**
- *  \brief ceng cb
+ *  \brief rtd cb
  */
 void atl_mdl_rtd_cb(bool result)
 {
@@ -172,14 +178,12 @@ void atl_mdl_rtd_cb(bool result)
  */
 void atl_mdl_general_ceng_cb(const ringslice_t rs_data)
 {
-  if(sscanf((char*)data, "+CENG: %d,\"%d,%d,%x,%x,", &idx, &mcc,&mnc,&lac,&cell_id))
+  while(ringslice_scanf(rs_data, "+CENG: %d,\"%d,%d,%x,%x,", 
+                        &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell, &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].mcc,
+                        &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].mnc, &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].lac,
+                        &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell_id))
   {
-    modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].cell = idx;
-    modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].mcc = mcc;
-    modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].mnc = mnc;
-    modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].lac = lac;
-    modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].cell_id = cell_id;
-    if(modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].cell_id == 0 || modem_rtd_ref->modem_lbs[modem_rtd_ref->lbs_cnt].lac == 0) break;
-    ++modem_rtd_ref->lbs_cnt;
+    if(atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell_id != 0 && atl_rtd->modem_lbs[modem_rtd_ref->lbs_cnt].lac != 0) ++atl_rtd->lbs_cnt;;
+    rs_data = ringslice_subslice(rs_data, strlen("+CENG:", 0);
   };
 }
