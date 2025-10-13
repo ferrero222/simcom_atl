@@ -42,12 +42,9 @@ DBC_MODULE_NAME("ATL_MDL_GENERAL");
 bool atl_mdl_modem_reset(atl_entity_cb_t cb)
 {
   bool result = false;
-  atl_item_t items[] = 
+  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
   {
-     ATL_ITEM("AT+CFUN=1,1"ATL_CMD_CRLF, //[REQ]
-               NULL, NULL,               //[PREFIX][CALLBACK]
-               2, 15,                    //[REPS][WAIT]
-               0, 0),                    //[STEP_ERR][STEP_OK]
+    ATL_ITEM("AT+CFUN=1,1"ATL_CMD_CRLF, NULL, NULL, 2, 15, 0, 1, NULL),
   };
   if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb)) return false;
   return true;
@@ -61,22 +58,11 @@ bool atl_mdl_modem_reset(atl_entity_cb_t cb)
 bool atl_mdl_modem_init(atl_entity_cb_t cb)
 {
   bool result = false;
-  atl_item_t items[] = 
+  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
   {
-    ATL_ITEM("AT"ATL_CMD_CRLF,   //[REQ]
-             NULL, NULL,         //[PREFIX][CALLBACK]
-             2, 15,              //[REPS][WAIT]
-             0, 1),              //[STEP_ERR][STEP_OK]
-    //---------------------------//
-    ATL_ITEM("AT"ATL_CMD_CRLF,   //[REQ]
-             NULL, NULL,         //[PREFIX][CALLBACK]
-             2, 15,              //[REPS][WAIT]
-             0, 1),              //[STEP_ERR][STEP_OK]
-    //---------------------------//
-    ATL_ITEM("ATE1"ATL_CMD_CRLF, //[REQ]
-             NULL, NULL,         //[PREFIX][CALLBACK]
-             2, 60,              //[REPS][WAIT]
-             0, 0),              //[STEP_ERR][STEP_OK]
+    ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, NULL, 2, 15, 0, 1, NULL),
+    ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, NULL, 2, 15, 0, 1, NULL),  
+    ATL_ITEM("ATE1"ATL_CMD_CRLF, NULL, NULL, 2, 60, 0, 0, NULL),  
   };
   if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb)) return false;
   return true;
@@ -105,59 +91,17 @@ bool atl_mdl_rtd(atl_rtd_cb_t cb)
     atl_deinit(); 
     return false; 
   } 
-  atl_item_t items[] = 
-  {
-    ATL_ITEM_EXT("AT+GSN"ATL_CMD_CRLF,                //[REQ]
-                 NULL, "%15[^\x0d]",                  //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->modem_imei),                //[ARGS]
-    //------------------------------------------------//
-    ATL_ITEM_EXT("AT+GMM"ATL_CMD_CRLF,                //[REQ]
-                 NULL, "%15[^\x0d]",                  //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->modem_id),                  //[ARGS]
-    //------------------------------------------------//
-    ATL_ITEM_EXT("AT+GMR"ATL_CMD_CRLF,                //[REQ]
-                 NULL, "Revision:%29[^\x0d]",         //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->modem_rev),                 //[ARGS]
-    //------------------------------------------------//
-    ATL_ITEM_EXT("AT+CCLK?"ATL_CMD_CRLF,              //[REQ]
-                 NULL, "+CCLK: \"%21[^\"]\"",         //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->modem_clock),               //[ARGS]
-    //------------------------------------------------//
-    ATL_ITEM_EXT("AT+CCID"ATL_CMD_CRLF,               //[REQ]
-                 "+CCLK", "%21[^\x0d]",               //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->sim_iccid),                 //[ARGS]    
-    //------------------------------------------------//
-    ATL_ITEM_EXT("AT+COPS?"ATL_CMD_CRLF,              //[REQ]
-                 "+COPS", "+COPS: 0, 0,\"%49[^\"]\"", //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->sim_operator),              //[ARGS]  
-    //------------------------------------------------//
-    ATL_ITEM_EXT("AT+CSQ"ATL_CMD_CRLF,                //[REQ]
-                 "+CSQ", "+CSQ: %d",                  //[PREFIX][FORMAT]
-                 2, 15,                               //[REPS][WAIT]
-                 0, 1,                                //[STEP_ERR][STEP_OK]
-                 atl_rtd->sim_rssi),                  //[ARGS]  
-    //------------------------------------------------//
-    ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,                 //[REQ]
-             NULL, NULL,                              //[PREFIX][CALLBACK]
-             2, 60,                                   //[REPS][WAIT]
-             0, 1),                                   //[STEP_ERR][STEP_OK]        
-    //------------------------------------------------//
-    ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,                  //[REQ]
-             NULL, atl_mdl_general_ceng_cb,           //[PREFIX][CALLBACK]
-             2, 60,                                   //[REPS][WAIT]
-             0, 0),                                   //[STEP_ERR][STEP_OK]                   
+  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
+  {   
+    ATL_ITEM("AT+GSN"ATL_CMD_CRLF,       NULL,               "%15[^\x0d]", 2, 15,  0, 1, NULL, atl_rtd->modem_imei),
+    ATL_ITEM("AT+GMM"ATL_CMD_CRLF,       NULL,               "%15[^\x0d]", 2, 15, 0, 1, NULL, atl_rtd->modem_id),  
+    ATL_ITEM("AT+GMR"ATL_CMD_CRLF,       NULL,      "Revision:%29[^\x0d]", 2, 15, 0, 1, NULL, atl_rtd->modem_rev),                
+    ATL_ITEM("AT+CCLK?"ATL_CMD_CRLF,     NULL,      "+CCLK: \"%21[^\"]\"", 2, 15, 0, 1, NULL, atl_rtd->modem_clock          
+    ATL_ITEM("AT+CCID"ATL_CMD_CRLF,   "+CCLK",               "%21[^\x0d]", 2, 15, 0, 1, NULL, atl_rtd->sim_iccid),             
+    ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,  "+COPS", "+COPS: 0, 0,\"%49[^\"]\"", 2, 15, 0, 1, NULL, atl_rtd->sim_operator),            
+    ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,     "+CSQ",                 "+CSQ: %d", 2, 15, 0, 1, NULL, atl_rtd->sim_rssi),             
+    ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL,                       NULL, 2, 60, 0, 1, NULL),                
+    ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL,                       NULL, 2, 60, 0, 0, atl_mdl_general_ceng_cb),                         
   };
   if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), atl_mdl_rtd_cb)) return false;
   atl_mdl_rtd_user_cb = cb;
@@ -184,6 +128,6 @@ void atl_mdl_general_ceng_cb(const ringslice_t rs_data)
                         &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell_id))
   {
     if(atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell_id != 0 && atl_rtd->modem_lbs[modem_rtd_ref->lbs_cnt].lac != 0) ++atl_rtd->lbs_cnt;;
-    rs_data = ringslice_subslice(rs_data, strlen("+CENG:", 0);
+    rs_data = ringslice_subslice(rs_data, strlen("+CENG:", 0));
   };
 }

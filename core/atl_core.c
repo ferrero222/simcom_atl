@@ -19,6 +19,9 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE");
 
+#warning "Time managment and freq."
+#warning "API examples."
+
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
  ******************************************************************************/
@@ -31,6 +34,7 @@ static ringslice_t atl_parcer_find_rs_res(const ringslice_t rs_req);
 static ringslice_t atl_parcer_extract_rs_data(const ringslice_t me, const ringslice_t rs_req, const ringslice_t rs_res);
 static int atl_parcer_proc_rs_data(const ringslice_t rs_data, const atl_item_t *item);
 static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t *item);
+static atl_string_boolean_ops(const ringslice_t* const rs_data, const char* pattern);
 
 /*******************************************************************************
  * Local types definitions
@@ -217,7 +221,7 @@ static int atl_parcer_post_proc(const ringslice_t* me, const ringslice_t* rs_req
            if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) break;
            // Intentional fall-through
       case 0b001: // NULL NULL DATA
-           if(item->answ.prefix) res = atl_cmd_strtok(rs_data, item->answ.prefix)
+           if(item->answ.prefix) res = atl_string_boolean_ops(rs_data, item->answ.prefix)
            if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
            break;
       default:
@@ -228,23 +232,36 @@ static int atl_parcer_post_proc(const ringslice_t* me, const ringslice_t* rs_req
 }
 
 /** 
- * \brief STRTOK for ring buffer atl
+ * \brief Boolean operation for strings in ATL
  */
-static atl_cmd_strtok(const ringslice_t* const rs_data, const char* prefix)
+static atl_string_boolean_ops(const ringslice_t* const rs_data, const char* pattern)
 {
   DBC_REQUIRE(118, rs_data); 
-  DBC_REQUIRE(119, prefix);
+  DBC_REQUIRE(119, pattern);
 
-  for(const char* start = prefix; *start;) 
+  const char* or_sep = strchr(pattern, '|'); //Find type of boolean operation
+  const char* and_sep = strchr(pattern, '&');
+  
+  if (or_sep && and_sep) return 0; // Combination in not allowed
+  
+  const char sep = or_sep ? '|' : (and_sep ? '&' : '\0');
+  const int require_all = (sep == '&'); // 1 for AND, 0 for OR
+
+  for(const char* start = pattern; *start;) 
   {
-    const char* end = strchr(start, '|');
+    const char* end = strchr(start, sep);
     size_t length = end ? (end - start) : strlen(start);
-    
-    if(ringslice_strncmp(rs_data, start, length) == 0) return 1;
-    
+    int match = (ringslice_strncmp(rs_data, start, length) == 0);
+    if(require_all) 
+    { 
+      if (!match) return 0; //if only one desmatch ->exit
+    } else 
+    {
+      if (match) return 1; //if only one match ->exit
+    }
     start = end ? end + 1 : start + length;
   }
-  return 0;
+  return require_all ? 1 : 0;
 }
 
 /** 
@@ -359,6 +376,7 @@ void atl_init(const atl_printf atl_printf, const atl_write atl_write, const uint
   ATL_DEBUG("[INFO] Memory pool size: %d bytes\n", ATL_MEMORY_POOL_SIZE);
   ATL_DEBUG("[INFO] Entity queue size: %d\n", ATL_ENTITY_QUEUE_SIZE);
   DBC_ENSURE(208, atl_init.init);
+  atl_mdl_modem_init(NULL);
   ATL_CRITICAL_EXIT
 }
 
@@ -565,7 +583,7 @@ void atl_entity_proc(void)
     case ATL_STATE_WRITE:
          ATL_DEBUG("[INFO] WRITE: '%s'\n", item->request);
          if(item->request) atl_init_t.atl_write(item->request, strlen(item->request));
-         entity->timer = item->wait;
+         entity->timer = item->wait *ATL_FREQUENCY;
          entity->state = ATL_STATE_READ;
          break;
     case ATL_STATE_READ:

@@ -30,12 +30,12 @@
  
 #define ATL_DEBUG_ENABLED        1
 
-#define ATL_FREQUENCY            "100Hz"
+#define ATL_FREQUENCY            10 //Hz
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
-#define ATL_CMD_SAVE_PATTERN     "SAVE:"
+#define ATL_CMD_SAVE             "SAVE:"
 #define ATL_CMD_CRLF             "\x0d\x0a"
 #define ATL_CMD_CR               '\x0d'
 #define ATL_CMD_LF               '\x0a'
@@ -93,10 +93,10 @@ typedef struct atl_item_t
     answ_parce_cb_t cb;
   } answ;
   struct {
-    uint16_t wait     : 12;  // wait time (0-4095)
-    uint8_t  rpt_cnt  : 4;   // repeat counter (-8 to 7)
-    int8_t   err_step : 4;   // error step (-8 to 7)  
-    int8_t   ok_step  : 4;   // success step (-8 to 7)
+    uint16_t wait     : 12;  // wait time (0-4095) in ATL_FREQUENCY
+    uint8_t  rpt_cnt  : 4;   // repeat counter (up to 15)
+    int8_t   err_step : 6;   // error step (-31 to 31)  
+    int8_t   ok_step  : 6;   // success step (-31 to 31)
   } meta;
 } atl_item_t;
 
