@@ -19,8 +19,10 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE");
 
-#warning "Time managment and freq."
-#warning "API examples."
+#warning "TODO: Time managment and freq."
+#warning "TODO: API examples."
+#warning "TODO: Check all DBC, Crititcal, input param checks \
+                Check all size buffs and other"
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')

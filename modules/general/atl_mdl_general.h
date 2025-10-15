@@ -6,8 +6,8 @@
  *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
  *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
  ******************************************************************************/
-#ifndef __ATL_MDL_GENERAL_IMPL_H
-#define __ATL_MDL_GENERAL_IMPL_H
+#ifndef __ATL_MDL_GENERAL_H
+#define __ATL_MDL_GENERAL_H
 
 /*******************************************************************************
  * Include files
@@ -82,4 +82,4 @@ bool atl_mdl_modem_init(atl_entity_cb_t cb);
  ******************************************************************************/
 bool atl_mdl_rtd(atl_rtd_cb_t cb);
 
- #endif //__ATL_MDL_GENERAL_IMPL_H 
+ #endif //__ATL_MDL_GENERAL_H 

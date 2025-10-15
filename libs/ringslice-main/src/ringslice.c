@@ -24,6 +24,13 @@
 #include "ringslice_util.h"
 #include "ringslice.h"
 
+#warning "UPD: scanf +wrap check for %[] + %*[] \
+               ringslice_equals \
+               ringslice_subslice_gap \
+               ringslice_strncmp \
+               ringslice_subslice_get_content \
+               ringslice_subslice_after \
+
 DBC_MODULE_NAME(RINGSLICE_MODULE)
 
 ringslice_t ringslice_strstr(ringslice_t const *const me, char const *substr) {

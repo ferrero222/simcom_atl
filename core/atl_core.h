@@ -76,7 +76,8 @@
 /*******************************************************************************
  * Global type definitions ('typedef')
  ******************************************************************************/
-typedef void (*answ_parce_cb_t)(ringslice_t data_slice, int result); 
+typedef void (*answ_parce_cb_t)(ringslice_t data_slice, int result);
+typedef void (*atl_urc_cb)(ringslice_t urc_slice);   //urc callback type
 
 typedef struct atl_urc_t{
   char* prefix;
@@ -106,7 +107,6 @@ typedef struct atl_item_t
 typedef void (*atl_printf)(const char *format, ...);
 typedef uint16_t (*atl_write)(uint8_t buff, uint16_t len);
 typedef void (*atl_entity_cb_t)(bool result);        //at cmd group callback type
-typedef void (*atl_urc_cb)(ringslice_t urc_slice);   //urc callback type
 
 typedef enum
 {

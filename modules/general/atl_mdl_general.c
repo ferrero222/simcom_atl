@@ -10,7 +10,6 @@
  * Include files
  ******************************************************************************/
 #include "atl_core.h"
-#include "atl_core_scheduler.h"
 #include "atl_mdl_general.h"
 #include "dbc_assert.h"
 
@@ -41,10 +40,9 @@ DBC_MODULE_NAME("ATL_MDL_GENERAL");
  ******************************************************************************/
 bool atl_mdl_modem_reset(atl_entity_cb_t cb)
 {
-  bool result = false;
   atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CFUN=1,1"ATL_CMD_CRLF, NULL, NULL, 2, 15, 0, 1, NULL),
+    ATL_ITEM("AT+CFUN=1,1"ATL_CMD_CRLF, NULL, NULL, 2, 15, 0, 0, NULL),
   };
   if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb)) return false;
   return true;
@@ -57,7 +55,6 @@ bool atl_mdl_modem_reset(atl_entity_cb_t cb)
  ******************************************************************************/
 bool atl_mdl_modem_init(atl_entity_cb_t cb)
 {
-  bool result = false;
   atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
   {
     ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, NULL, 2, 15, 0, 1, NULL),
@@ -83,11 +80,10 @@ static atl_rtd_cb_t atl_mdl_rtd_user_cb = NULL;
 bool atl_mdl_rtd(atl_rtd_cb_t cb)
 {
   DBC_REQUIRE(101, atl_is_init());
-  bool result = false;
-  atl_rtd = tlsf_malloc(atl_user_init.atl_tlsf, atl_mdl_rtd_t);
+  atl_rtd = (atl_mdl_rtd_t*)tlsf_malloc(atl_user_init.atl_tlsf, sizeof(atl_mdl_rtd_t));
   if(!atl_rtd) 
   {
-    ATL_DEBUG("[ERROR] Failed to allocate memory for %d items\n", item_amount); 
+    ATL_DEBUG("[ERROR] Failed to allocate memory\n"); 
     atl_deinit(); 
     return false; 
   } 
@@ -113,7 +109,7 @@ bool atl_mdl_rtd(atl_rtd_cb_t cb)
  */
 void atl_mdl_rtd_cb(bool result)
 {
-  atl_mdl_rtd_user_cb(result, atl_rtd);
+  if(atl_mdl_rtd_user_cb) atl_mdl_rtd_user_cb(result, atl_rtd);
   tlsf_free(atl_user_init.atl_tlsf, atl_rtd);
 }
 
@@ -128,6 +124,6 @@ void atl_mdl_general_ceng_cb(const ringslice_t rs_data)
                         &atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell_id))
   {
     if(atl_rtd->modem_lbs[atl_rtd->lbs_cnt].cell_id != 0 && atl_rtd->modem_lbs[modem_rtd_ref->lbs_cnt].lac != 0) ++atl_rtd->lbs_cnt;;
-    rs_data = ringslice_subslice(rs_data, strlen("+CENG:", 0));
+    rs_data = ringslice_subslice(rs_data, strlen("+CENG:"), 0);
   };
 }

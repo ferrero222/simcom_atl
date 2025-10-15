@@ -6,6 +6,9 @@
  *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
  *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
  ******************************************************************************/
+#ifndef __ATL_MDL_TCP_H
+#define __ATL_MDL_TCP_H
+
 /*******************************************************************************
  * Include files
  ******************************************************************************/
@@ -49,8 +52,7 @@ bool atl_mdl_gprs_socket_config(atl_entity_cb_t cb);
  ** \param  cb    cb when proc will be done. 
  ** \retval true - proc started, false - smthg is wrong
  ******************************************************************************/
-   //atl_mdl_gprs_socket_connect_vla(_mode, _ip, _port, _cb)
-bool atl_mdl_gprs_socket_connect(char* cipstart, atl_entity_cb_t cb);
+bool atl_mdl_gprs_socket_connect(mode, ip, port, atl_entity_cb_t cb);
 
 /*******************************************************************************
  ** \brief  Function to connect socket. Use @atl_mdl_gprs_socket_send_recieve_vla
@@ -58,7 +60,6 @@ bool atl_mdl_gprs_socket_connect(char* cipstart, atl_entity_cb_t cb);
  ** \param  cb    cb when proc will be done. 
  ** \retval true - proc started, false - smthg is wrong
  ******************************************************************************/
-   //atl_mdl_gprs_socket_send_recieve_vla(_data, _cb) 
 bool atl_mdl_gprs_socket_send_recieve(char* cipsend, char* data, atl_entity_cb_t cb);
 
 /*******************************************************************************
@@ -74,3 +75,5 @@ bool atl_mdl_gprs_socket_disconnect(atl_entity_cb_t cb);
  ** \retval true - proc started, false - smthg is wrong
  ******************************************************************************/
 bool atl_mdl_gprs_deinit(atl_entity_cb_t cb);
+
+#endif //__ATL_MDL_TCP_H
