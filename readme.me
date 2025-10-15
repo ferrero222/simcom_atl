@@ -1,33 +1,33 @@
 # ATL (AT Command Library) for SIMCom Modems
 
-[![License](https://img.shields.io/badge/License-Proprietary-blue.svg)](https://github.com/yourusername/atl-library/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/yourusername/atl-library)
-[![Platform](https://img.shields.io/badge/Platform-Embedded-lightgrey.svg)](https://github.com/yourusername/atl-library)
+[![License](https://img.shields.io/badge/License-Proprietary-blue.svg)]()
+[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Embedded-lightgrey.svg)]()
 
 A powerful, asynchronous AT command processing library for SIMCom modems, designed for embedded systems with minimal resource consumption.
 
 ## 📖 Table of Contents
 
-- [Features](#-features)
-- [Supported Modems](#-supported-modems)
-- [Quick Start](#-quick-start)
-- [API Documentation](#-api-documentation)
-- [Modules](#-modules)
-- [Examples](#-examples)
-- [Configuration](#-configuration)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Features](#features)
+- [Supported Modems](#supported-modems)
+- [Quick Start](#quick-start)
+- [API Documentation](#api-documentation)
+- [Modules](#modules)
+- [Examples](#examples)
+- [Configuration](#configuration)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## ✨ Features
 
-- **🚀 Asynchronous Processing** - Non-blocking AT command execution
-- **📚 Modular Architecture** - Ready-to-use TCP, SMS, GPRS implementations
-- **⚡ Efficient Memory Usage** - Built-in TLSF memory allocator
-- **🔒 Thread Safety** - Critical sections for RTOS environments
-- **🛡️ Reliability** - DBC (Design by Contract) system integration
-- **🔧 Flexible Configuration** - Customizable timeouts, retries, execution flow
-- **📊 Advanced Debugging** - Detailed process logging
-- **🔄 Ring Buffer Support** - Efficient data handling
+- **Asynchronous Processing** - Non-blocking AT command execution
+- **Modular Architecture** - Ready-to-use TCP, SMS, GPRS implementations
+- **Efficient Memory Usage** - Built-in TLSF memory allocator
+- **Thread Safety** - Critical sections for RTOS environments
+- **Reliability** - DBC (Design by Contract) system integration
+- **Flexible Configuration** - Customizable timeouts, retries, execution flow
+- **Advanced Debugging** - Detailed process logging
+- **Ring Buffer Support** - Efficient data handling
 
 ## 📟 Supported Modems
 
@@ -42,6 +42,7 @@ A powerful, asynchronous AT command processing library for SIMCom modems, design
 ### 1. Installation
 
 Add these files to your project:
+
 ```
 atl_library/
 ├── atl_core.[ch]           # Core library
@@ -60,7 +61,7 @@ atl_library/
 
 // Your buffers and variables
 static uint8_t rx_buffer[1024];
-static uint16_t ring_head = 0, ring_head = 0;
+static uint16_t ring_head = 0, ring_tail = 0;
 
 // UART functions
 void my_printf(const char* format, ...) {
@@ -106,26 +107,35 @@ void main_loop(void) {
 ### Core Functions
 
 #### Initialization
+
 ```c
-void atl_init(atl_printf printf_func, atl_write write_func, 
-              const uint8_t* ring_buf, uint16_t ring_len,
-              const uint16_t* ring_tail, const uint16_t* ring_head);
+void atl_init(atl_printf printf_func, 
+              atl_write write_func, 
+              const uint8_t* ring_buf, 
+              uint16_t ring_len,
+              const uint16_t* ring_tail, 
+              const uint16_t* ring_head);
 ```
 
 #### Queue Management
+
 ```c
-bool atl_entity_enqueue(const atl_item_t* items, uint8_t count, 
+bool atl_entity_enqueue(const atl_item_t* items, 
+                       uint8_t count, 
                        atl_entity_cb_t callback);
+
 bool atl_entity_dequeue(void);
 ```
 
 #### URC Handling
+
 ```c
 bool atl_urc_enqueue(const atl_urc_t* urc);
 bool atl_urc_dequeue(const atl_urc_t* urc);
 ```
 
 #### Main Processor
+
 ```c
 void atl_entity_proc(void);  // Call in main loop
 ```
@@ -140,7 +150,7 @@ ATL_ITEM(request, prefix, format, retries, timeout,
 
 ## 📦 Modules
 
-### 🔌 General Modem Functions (`atl_mdl_general`)
+### General Modem Functions (`atl_mdl_general`)
 
 ```c
 // Modem reset
@@ -157,7 +167,7 @@ static void rtd_callback(bool success, atl_mdl_rtd_t* data) {
 atl_mdl_rtd(rtd_callback);
 ```
 
-### 🌐 TCP/IP Connectivity (`atl_mdl_tcp`)
+### TCP/IP Connectivity (`atl_mdl_tcp`)
 
 ```c
 // GPRS initialization
@@ -176,7 +186,7 @@ atl_mdl_gprs_socket_send_recieve("Hello World!", send_cb);
 atl_mdl_gprs_deinit(deinit_cb);
 ```
 
-### 📱 SMS Handling (`atl_mdl_sms`)
+### SMS Handling (`atl_mdl_sms`)
 
 ```c
 // Send SMS
@@ -290,18 +300,16 @@ void setup_sms_auto_reply(void) {
 // Override critical sections for your RTOS
 __attribute__((weak)) void atl_crit_enter(void) {
     // Your critical section entry
-    // Example: taskENTER_CRITICAL();
 }
 
 __attribute__((weak)) void atl_crit_exit(void) {
     // Your critical section exit
-    // Example: taskEXIT_CRITICAL();
 }
 ```
 
 ### Memory Configuration
 
-The library uses TLSF (Two-Level Segregate Fit) memory allocator. Adjust pool size based on your needs:
+The library uses TLSF (Two-Level Segregate Fit) memory allocator:
 
 ```c
 #define ATL_MEMORY_POOL_SIZE     // Default: 2048 bytes
@@ -320,7 +328,7 @@ The library uses TLSF (Two-Level Segregate Fit) memory allocator. Adjust pool si
 void your_printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    // Your output implementation (UART, SWO, etc.)
+    // Your output implementation
     va_end(args);
 }
 
@@ -355,13 +363,12 @@ void atl_crit_exit(void) {
 
 ## 🐛 Debugging
 
-Enable debug output by setting `ATL_DEBUG_ENABLED 1`:
+Enable debug output:
 
 ```
 [ATL][atl_core.c:125] READ: req='AT+CGATT?', answ='+CGATT: 1'
 [ATL][atl_core.c:256] Command successful
 [ATL][atl_core.c:189] Found URC: +CMTI
-[ATL][atl_core.c:301] Entity enqueued successfully
 ```
 
 ## 🤝 Contributing
@@ -376,33 +383,19 @@ We welcome contributions! Please feel free to submit pull requests, report bugs,
 4. Add tests if applicable
 5. Submit a pull request
 
-### Code Style
-
-- Follow embedded C best practices
-- Use descriptive variable names
-- Add DBC assertions for critical functions
-- Include documentation for new features
-
 ## 📄 License
 
-This project is proprietary software. See [LICENSE](LICENSE) file for details.
+This project is proprietary software.
 
 ## 📞 Support
 
-- **Documentation**: [GitHub Wiki](https://github.com/yourusername/atl-library/wiki)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/atl-library/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/atl-library/discussions)
-
-## 🏆 Acknowledgments
-
-- TLSF memory allocator implementation
-- SIMCom for modem documentation
-- Contributors and testers
+- **Issues**: GitHub Issues
+- **Discussions**: GitHub Discussions
 
 ---
 
 **Version**: 1.0.0  
 **Last Update**: October 2025  
-**Supported Platforms**: ARM Cortex-M, ESP32, RISC-V, and other embedded platforms  
+**Supported Platforms**: ARM Cortex-M, ESP32, RISC-V  
 **Required C Standard**: C99 or newer
-```
+Теперь README должен нормально отображаться на GitHub.
