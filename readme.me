@@ -1,0 +1,253 @@
+# ATL (AT Command Library) for SIMCom Modems
+
+Библиотека для работы с AT-командами модемов SIMCom, предоставляющая удобный API для управления модемом, обработки команд и реализации различных функциональных модулей.
+
+## 📋 Оглавление
+
+- [Особенности](#особенности)
+- [Структура проекта](#структура-проекта)
+- [Быстрый старт](#быстрый-старт)
+- [API](#api)
+- [Модули](#модули)
+- [Примеры использования](#примеры-использования)
+- [Конфигурация](#конфигурация)
+- [Требования](#требования)
+
+## ✨ Особенности
+
+- **🔄 Асинхронная обработка** - неблокирующее выполнение AT-команд
+- **📚 Модульная архитектура** - готовые реализации для TCP, SMS, GPRS
+- **🔧 Гибкая конфигурация** - настраиваемые таймауты, повторы, шаги выполнения
+- **🛡️ Надежность** - встроенная система проверок DBC (Design by Contract)
+- **💾 Эффективное использование памяти** - собственный аллокатор TLSF
+- **🔒 Потокобезопасность** - критические секции для работы в RTOS
+- **📊 Расширенная отладка** - детальное логирование процессов
+
+## 📁 Структура проекта
+
+```
+atl_library/
+├── atl_core.[ch]           # Ядро библиотеки
+├── atl_mdl_general.[ch]    # Базовые функции модема
+├── atl_mdl_tcp.[ch]        # TCP/IP соединения
+├── atl_mdl_sms.[ch]        # Работа с SMS
+├── ringslice.[ch]          # Работа с кольцевыми буферами
+├── tlsf.[ch]              # Аллокатор памяти
+└── dbc_assert.h           # Система контрактов
+```
+
+## 🚀 Быстрый старт
+
+### 1. Инициализация библиотеки
+
+```c
+// Ваши буферы и переменные
+uint8_t rx_buffer[1024];
+uint16_t ring_head = 0, ring_tail = 0;
+
+// Функции для работы с UART
+void my_printf(const char* format, ...) { /* реализация */ }
+uint16_t my_uart_write(uint8_t* data, uint16_t len) { /* реализация */ }
+
+// Инициализация ATL
+atl_init(my_printf, my_uart_write, rx_buffer, 
+         sizeof(rx_buffer), &ring_tail, &ring_head);
+```
+
+### 2. Базовое использование
+
+```c
+// Колбэк для завершения операции
+void modem_init_cb(bool success) {
+    if (success) {
+        printf("Модем инициализирован успешно!\n");
+    } else {
+        printf("Ошибка инициализации модема!\n");
+    }
+}
+
+// Инициализация модема
+atl_mdl_modem_init(modem_init_cb);
+
+// Главный цикл обработки
+while (1) {
+    atl_entity_proc();
+    // ... другая логика
+}
+```
+
+## 🔧 API
+
+### Основные функции
+
+#### Инициализация
+```c
+void atl_init(atl_printf printf_func, atl_write write_func, 
+              const uint8_t* ring_buf, uint16_t ring_len,
+              const uint16_t* ring_tail, const uint16_t* ring_head);
+```
+
+#### Работа с очередями
+```c
+bool atl_entity_enqueue(const atl_item_t* items, uint8_t count, 
+                       atl_entity_cb_t callback);
+bool atl_entity_dequeue(void);
+```
+
+#### Обработка URC (Unsolicited Result Code)
+```c
+bool atl_urc_enqueue(const atl_urc_t* urc);
+bool atl_urc_dequeue(const atl_urc_t* urc);
+```
+
+#### Главный процессор
+```c
+void atl_entity_proc(void);  // Вызывать в главном цикле
+```
+
+### Макросы для создания команд
+
+```c
+// Базовый макрос для AT-команд
+ATL_ITEM(req, prefix, format, retries, timeout, 
+         error_step, success_step, callback, ...)
+```
+
+## 📦 Модули
+
+### 🔌 Базовые функции модема (`atl_mdl_general`)
+
+```c
+// Перезагрузка модема
+atl_mdl_modem_reset(callback);
+
+// Получение информации о модеме
+void rtd_callback(bool success, atl_mdl_rtd_t* data) {
+    if (success) {
+        printf("IMEI: %s\n", data->modem_imei);
+        printf("Оператор: %s\n", data->sim_operator);
+    }
+}
+atl_mdl_rtd(rtd_callback);
+```
+
+### 🌐 TCP/IP соединения (`atl_mdl_tcp`)
+
+```c
+// Настройка GPRS
+atl_mdl_gprs_init(gprs_cb);
+
+// Конфигурация сокета
+atl_mdl_gprs_socket_config(socket_cb);
+
+// Подключение к серверу
+atl_mdl_gprs_socket_connect("TCP", "192.168.1.1", "8080", connect_cb);
+
+// Отправка данных
+atl_mdl_gprs_socket_send_recieve("Hello World!", send_cb);
+```
+
+### 📱 Работа с SMS (`atl_mdl_sms`)
+
+```c
+// Отправка SMS
+atl_mdl_sms_send_text("+79123456789", "Текст сообщения", sms_cb);
+
+// Чтение SMS
+void sms_read_cb(bool success, atl_mdl_sms_msg_t* msg) {
+    if (success) {
+        printf("SMS от %s: %s\n", msg->num, msg->msg);
+    }
+}
+atl_mdl_sms_read(1, sms_read_cb);
+
+// Обработка входящих SMS
+atl_urc_t sms_urc = {
+    .prefix = "+CMTI",
+    .cb = atl_mdl_sms_urc_cb
+};
+atl_urc_enqueue(&sms_urc);
+```
+
+## 💡 Примеры использования
+
+### Обработка входящих сообщений
+
+```c
+// Настройка URC для входящих SMS
+void setup_sms_handling(void) {
+    atl_urc_t urcs[] = {
+        {"+CMTI", atl_mdl_sms_urc_cb},
+        {"+CENG", atl_mdl_general_ceng_cb},
+        // ... другие URC
+    };
+    
+    for (int i = 0; i < sizeof(urcs)/sizeof(urcs[0]); i++) {
+        atl_urc_enqueue(&urcs[i]);
+    }
+}
+```
+
+## ⚙️ Конфигурация
+
+### Основные настройки в `atl_core.h`
+
+```c
+#define ATL_ENTITY_QUEUE_SIZE    10    // Размер очереди команд
+#define ATL_URC_QUEUE_SIZE       10    // Размер очереди URC
+#define ATL_MEMORY_POOL_SIZE     2048  // Размер пула памяти
+#define ATL_DEBUG_ENABLED        1     // Включить отладку
+#define ATL_FREQUENCY            10    // Частота обработки (Гц)
+```
+
+### Кастомизация макросов
+
+```c
+// Переопределение критических секций для вашей RTOS
+__attribute__((weak)) void atl_crit_enter(void) {
+    // Ваша реализация входа в критическую секцию
+}
+
+__attribute__((weak)) void atl_crit_exit(void) {
+    // Ваша реализация выхода из критической секции
+}
+```
+
+## 📋 Требования
+
+### Аппаратные
+- Микроконтроллер с достаточным объемом RAM
+- UART для связи с модемом SIMCom
+- Модем SIMCom серии (SIM800, SIM7000, SIM7600, etc.)
+
+### Программные
+- Компилятор C99+
+- Реализация функций `printf` и записи в UART
+- Система для критических секций (при работе в RTOS)
+
+## 🔄 Порядок работы
+
+1. **Инициализация** → `atl_init()`
+2. **Настройка URC** → `atl_urc_enqueue()`
+3. **Добавление команд** → `atl_entity_enqueue()`
+4. **Обработка** → `atl_entity_proc()` (в главном цикле)
+5. **Обработка колбэков** → Реакция на события
+
+## 🐛 Отладка
+
+Библиотека предоставляет детальное логирование:
+
+```c
+[ATL][atl_core.c:125] READ: req='AT+CGATT?', answ='+CGATT: 1'
+[ATL][atl_core.c:256] Command successful
+[ATL][atl_core.c:189] Found URC: +CMTI
+```
+
+Для отключения логирования установите `ATL_DEBUG_ENABLED 0`.
+
+---
+
+**Версия**: 1.0.0  
+**Лицензия**: Проприетарная  
+**Поддержка**: SIMCom modems (SIM800, SIM7000, SIM7600 series)  
+**Автор**: (c) 03.10.2025
