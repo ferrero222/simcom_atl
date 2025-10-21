@@ -19,18 +19,6 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE");
 
-#warning "README:  Настройка и предварительные действия:\
-                   Хочешь послать одну единственную команду? делай так:\
-                   Хочешь послать группку команд? Делай так:\
-                   Хочешь создать логическую цепочку, делай так:\
-                   Нюансы и возможности:\
-                   Полноценный пример:\"
-
-#warning "TODO: Need to think about head, tail movement when proc done or fail\
-                I dont wanna check same data again and again, if there is \
-                no new data in buff i should understand that and wait for the new one\
-                without any deleting execution inside of buff"
-
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
  ******************************************************************************/
@@ -63,6 +51,10 @@ static uint32_t atl_time = 0;
  ******************************************************************************/
 static int atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item)
 {
+  #warning "TODO: Need to think about head, tail movement when proc done or fail\
+                I dont wanna check same data again and again, if there is \
+                no new data in buff i should understand that and wait for the new one\
+                without any deleting execution inside of buff"
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(101, atl_init_struct.init);
   DBC_REQUIRE(102, item);

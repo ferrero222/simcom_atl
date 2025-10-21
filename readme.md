@@ -1,213 +1,208 @@
-# ATL Library Documentation
+# ATL Documentation
 
 ## Table of Contents
-1. [Setup and Prerequisites](#setup-and-prerequisites)
-2. [Sending a Single Command](#sending-a-single-command)
-3. [Sending Command Groups](#sending-command-groups)
-4. [Creating Logical Chains](#creating-logical-chains)
-5. [Nuances and Capabilities](#nuances-and-capabilities)
-6. [Complete Example](#complete-example)
+1. [Features](#features)
+2. [Setup and Prerequisites](#setup-and-prerequisites)
+3. [Sending a Single Command](#sending-a-single-command)
+4. [Sending Command Groups](#sending-command-groups)
+5. [Creating Logical Chains](#creating-logical-chains)
+6. [URC Handling](#urc-handling)
+7. [Advanced Features](#advanced-features)
 
-## 1. Setup and Prerequisites
+## 1. Features
 
-### Initialization
+ATL (AT Command Library) provides a comprehensive solution for working with cellular modems:
+
+- **Command Management**: Methods for sending AT commands in varying quantities and constructing complex logical chains
+- **Memory Management**: Custom TLSF dynamic memory allocator with fragmentation control, alignment, and static buffer allocation
+- **Error Handling**: Design by Contract (DBC) for robust error checking
+- **Thread Safety**: Critical section protection for multithreaded applications
+- **URC Support**: Unsolicited Result Code handling for asynchronous events
+
+## 2. Setup and Prerequisites
+
+### Basic Configuration
+
+Define your ring buffer and pointers:
 ```c
-// Define your ring buffer and pointers
 uint8_t rx_ring_buffer[1024];
 uint16_t ring_head = 0;
 uint16_t ring_tail = 0;
+```
 
-// Initialize ATL library
+Initialize ATL:
+```c
 atl_init(
-    your_printf_function,    // Custom printf
+    your_printf_function,    // Custom printf for debugging
     your_uart_write_function, // UART write function  
-    rx_ring_buffer,          // RX buffer
+    rx_ring_buffer,          // RX ring buffer
     sizeof(rx_ring_buffer),  // Buffer size
     &ring_tail,              // Tail pointer
     &ring_head               // Head pointer
 );
 ```
 
-### Required Callbacks
+### Critical Section Configuration
+
+Implement critical section handlers to protect against concurrent access:
+
 ```c
-// Call this function every 10ms in your main loop
-void your_main_loop(void) {
-    atl_core_proc();
+// Define your critical section handlers
+__attribute__((weak)) void atl_crit_enter(void) 
+{
+    /* Disable interrupts if needed */
+    __disable_irq();
 }
 
-// Update ring buffer when data arrives
-void uart_rx_callback(uint8_t* data, uint16_t len) {
-    // Copy data to ring buffer
-    // Update ring_head pointer
+__attribute__((weak)) void atl_crit_exit(void)  
+{
+    /* Enable interrupts if needed */
+    __enable_irq();
 }
 ```
 
-## 2. Sending a Single Command
+### Runtime Processing
+
+Call the processing function every 10ms in your system timer:
+
+```c
+void timer_10ms_handler(void) {
+    atl_core_proc();
+}
+```
+
+### Configuration Options
+
+Modify `atl_core.h` to customize ATL behavior:
+
+```c
+/*******************************************************************************
+ * Config
+ ******************************************************************************/
+#define ATL_MAX_ITEMS_PER_ENTITY 50    // Maximum commands per group
+#define ATL_ENTITY_QUEUE_SIZE    10    // Command queue size
+#define ATL_URC_QUEUE_SIZE       10    // URC handler queue size
+#define ATL_MEMORY_POOL_SIZE     2048  // TLSF memory pool size
+#define ATL_DEBUG_ENABLED        1     // Enable debug output
+#define ATL_FREQUENCY            100   // Hz (fixed at 1 per 10ms)
+```
+
+## 3. Sending a Single Command
 
 ### Basic Command
-```c
-// Simple AT command with OK/ERROR check
-static const atl_item_t single_cmd = {
-    "AT",
-    NULL,           // No prefix check
-    NULL,           // No data parsing
-    {500, 3, -1, 1} // 5s timeout, 3 retries
-};
 
-// Send command
-atl_entity_enqueue(&single_cmd, 1, command_callback, 0, NULL);
+Send a simple AT command without expecting a response:
+
+```c
+bool atl_mdl_modem_reset(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+{
+  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
+  {
+      ATL_ITEM("AT+CFUN=1,1" ATL_CMD_CRLF, NULL, NULL, 2, 150, 0, 0, NULL, NULL),
+  };
+  
+  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  return true;
+}
 ```
 
 ### Command with Response Parsing
+
+Send a command and parse the response:
+
 ```c
-// Data structure for parsed response
-typedef struct {
-    int rssi;
-    int ber;
-} signal_data_t;
 
-// Command with response parsing
-static const atl_item_t csq_cmd = ATL_ITEM(
-    "AT+CSQ",
-    "+CSQ:",
-    "%d,%d",
-    3,      // retries
-    100,    // timeout (1s)
-    -1,     // error step
-    1,      // success step
-    NULL,
-    ATL_ARG(signal_data_t, rssi),
-    ATL_ARG(signal_data_t, ber)
-);
-
-// Usage
-signal_data_t data;
-atl_entity_enqueue(&csq_cmd, 1, csq_callback, sizeof(signal_data_t), &data);
+bool atl_mdl_rtd(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+{
+  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
+  {
+    ATL_ITEM(ATL_CMD_SAVE "AT+COPS?" ATL_CMD_CRLF, "+COPS", "+COPS: 0, 0,\"%49[^\"]\"", 2, 150, 0, 1, NULL, ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
+  };
+  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), ctx)) return false; 
+  return true;
+}
 ```
 
-## 3. Sending Command Groups
+### Command Parameters Explained
 
-### Sequential Command Group
+- **ATL_CMD_SAVE**: Saves command to dynamic memory (required for non-literal strings)
+- **Response Prefix**: String to search for in response (`+COPS`)
+  - Use `|` for OR operations: `"+CREG: 0,1|+CREG: 0,5"`
+  - Use `&` for AND operations: `"+IPD&SEND OK"`
+- **Format String**: SSCANF-style format for parsing responses
+- **ATL_ARG**: Maps parsed data to structure fields
+
+## 4. Sending Command Groups
+
+Execute sequences of AT commands with conditional logic:
+
 ```c
-// Multiple commands executed sequentially
-static const atl_item_t init_commands[] = {
-    ATL_ITEM("AT", NULL, NULL, 3, 100, -1, 1, NULL),
-    ATL_ITEM("ATE0", NULL, NULL, 3, 100, -1, 1, NULL),
-    ATL_ITEM("AT+CFUN=1", NULL, NULL, 3, 100, -1, 1, NULL),
-    ATL_ITEM("AT+CREG?", "+CREG:", "%*d,%d", 3, 100, -1, 1, NULL,
-             ATL_ARG(network_data_t, reg_status))
-};
-
-// Enqueue group
-atl_entity_enqueue(init_commands, 4, init_complete_callback, 
-                  sizeof(network_data_t), &context);
+bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+{
+  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
+  {
+    ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,                 "+CIPMODE: 0", NULL, 1, 150, 0, 2, NULL, NULL),
+    ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                         NULL, NULL, 2, 150, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,                   "+CIPMUX: 0", NULL, 1, 150, 0, 2, NULL, NULL),
+    ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                          NULL, NULL, 2, 500, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,            "STATE: IP START", NULL, 1, 250, 0, 2, NULL, NULL),
+    ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,               NULL, NULL, 2, 150, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,          "STATE: IP GPRSACT", NULL, 1, 250, 0, 2, NULL, NULL),
+    ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                             NULL, NULL, 4, 800, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,          "STATE: IP GPRSACT", NULL, 1, 250, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,                             NULL, NULL, 1, 150, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,                 "+CIPHEAD: 1", NULL, 1, 150, 0, 2, NULL, NULL),
+    ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                         NULL, NULL, 2, 150, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,                 "+CIPSRIP: 1", NULL, 1, 150, 0, 2, NULL, NULL),
+    ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                         NULL, NULL, 2, 150, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,             "+CIPSHOWTP: 1", NULL, 1, 150, 0, 1, NULL, NULL),
+    ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,                       NULL, NULL, 2, 150, 0, 0, NULL, NULL),
+  };
+  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  return true;
+}
 ```
 
-### Conditional Command Flow
+## 5. Creating Logical Chains
+
+Combine command groups into complex execution workflows with error handling and loops:
+
+### Chain Definition
+
 ```c
-// Commands with different success/error paths
-static const atl_item_t conditional_cmds[] = {
-    // Step 1: Check network registration
-    ATL_ITEM("AT+CREG?", "+CREG:", "%*d,%d", 3, 100, 2, 1, NULL,
-             ATL_ARG(context_t, net_status)),
+atl_chain_t* atl_mld_tcp_server_create(atl_mdl_tcp_server_t* tcp)
+{
+    chain_step_t server_steps[] = {
+        // Initialization sequence
+        ATL_CHAIN("MODEM INIT",     "GPRS INIT",      "MODEM RESET", atl_mdl_modem_init, NULL, NULL, 3),
+        ATL_CHAIN("GPRS INIT",      "SOCKET CONFIG",  "MODEM RESET", atl_mdl_gprs_init, NULL, NULL, 3),
+        ATL_CHAIN("SOCKET CONFIG",  "SOCKET CONNECT", "GPRS DEINIT", atl_mdl_gprs_socket_config, NULL, NULL, 3),
+        ATL_CHAIN("SOCKET CONNECT", "MODEM RTD",      "GPRS DEINIT", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
+
+        // Main data loop
+        ATL_CHAIN_LOOP_START(0), 
+        ATL_CHAIN("MODEM RTD",          "SOCKET SEND RECEIVE", "SOCKET DISCONNECT", atl_mdl_rtd, NULL, NULL, 3),
+        ATL_CHAIN("SOCKET SEND RECEIVE", "MODEM RTD",          "SOCKET DISCONNECT", atl_mdl_gprs_socket_send, NULL, NULL, 3),
+        ATL_CHAIN_LOOP_END,
+
+        // Error recovery
+        ATL_CHAIN("SOCKET DISCONNECT", "SOCKET CONFIG", "MODEM RESET", atl_mdl_gprs_socket_disconnect, NULL, NULL, 3),
+        ATL_CHAIN("GPRS DEINIT",       "GPRS INIT",     "MODEM RESET", atl_mdl_gprs_deinit, NULL, NULL, 3),
+        ATL_CHAIN("MODEM RESET",       "GPRS INIT",     "MODEM RESET", atl_mdl_modem_reset, NULL, NULL, 3),
+    };
     
-    // Step 2: Success path - send data
-    ATL_ITEM("AT+CGDATA=1", "CONNECT", NULL, 3, 500, -1, 1, NULL),
-    
-    // Step 3: Error path - retry registration
-    ATL_ITEM("AT+COPS=0", NULL, NULL, 3, 100, -1, 1, NULL)
-};
+    atl_chain_t *chain = atl_chain_create("ServerTCP", server_steps, 
+                                         sizeof(server_steps)/sizeof(server_steps[0]), 
+                                         tcp);
+    return chain;
+}
 ```
 
-## 4. Creating Logical Chains
+### Chain Execution
 
-### Simple Chain
 ```c
-// Define chain steps
-chain_step_t steps[] = {
-    ATL_CHAIN("Check Signal", "Connect", "Retry", check_signal_function, signal_cb, NULL, 3),
-    ATL_CHAIN("Connect", "Send Data", "Disconnect", connect_function, connect_cb, NULL, 2),
-    ATL_CHAIN_COND("Check Connection", "Send Data", "Reconnect", check_connection_func),
-    ATL_CHAIN_LOOP_START(3),  // Loop 3 times
-    ATL_CHAIN("Send Data", NULL, "Disconnect", send_data_function, data_cb, NULL, 1),
-    ATL_CHAIN_LOOP_END,
-    ATL_CHAIN_DELAY(1000)  // 1 second delay
-};
-
-// Create and start chain
-atl_chain_t *chain = atl_chain_create("Data Transmission", steps, 
-                                     sizeof(steps)/sizeof(steps[0]));
+// Create and start the chain
+atl_chain_t *chain = atl_chain_create("Data Transmission", steps, sizeof(steps)/sizeof(steps[0]),NULL);                                
 atl_chain_start(chain);
-```
-
-### Chain with Error Recovery
-```c
-chain_step_t recovery_steps[] = {
-    ATL_CHAIN("Initialize", "Check Network", "Reset", init_modem, init_cb, NULL, 2),
-    ATL_CHAIN_COND("Check Network", "Send SMS", "Register Network", check_network_func),
-    ATL_CHAIN("Register Network", "Send SMS", "Reset", register_network, reg_cb, NULL, 3),
-    ATL_CHAIN("Send SMS", NULL, "Retry SMS", send_sms_function, sms_cb, NULL, 2),
-    ATL_CHAIN("Retry SMS", "Send SMS", "Reset", NULL, NULL, NULL, 1),
-    ATL_CHAIN("Reset", "Initialize", NULL, reset_modem, reset_cb, NULL, 1)
-};
-```
-
-## 5. Nuances and Capabilities
-
-### URC (Unsolicited Result Code) Handling
-```c
-// Define URC handler
-void incoming_sms_handler(ringslice_t data) {
-    // Process incoming SMS notification
-    ATL_DEBUG("New SMS received!\n");
-}
-
-// Register URC
-atl_urc_t sms_urc = {
-    "+CMTI:",  // URC prefix
-    incoming_sms_handler
-};
-atl_urc_enqueue(&sms_urc);
-```
-
-### Memory Management
-- **TLSF Allocator**: Efficient memory allocation for dynamic data
-- **Automatic Cleanup**: Memory freed when entities complete
-- **Pool Size**: Configurable via `ATL_MEMORY_POOL_SIZE`
-
-### Advanced Features
-
-#### Custom Response Processing
-```c
-void custom_parser(ringslice_t data_slice, bool result, void* user_data) {
-    if (result) {
-        // Custom parsing logic
-        char buffer[64];
-        ringslice_copy(&data_slice, buffer, sizeof(buffer));
-        ATL_DEBUG("Custom parse: %s\n", buffer);
-    }
-}
-
-static const atl_item_t custom_cmd = {
-    "AT+CUSTOM",
-    "+CUSTOM:",
-    NULL,
-    {100, 1, -1, 1},
-    .answ.cb = custom_parser
-};
-```
-
-#### Step Control
-```c
-// Control command flow with step modifiers
-static const atl_item_t controlled_cmds[] = {
-    // On error, jump to step 3 (index 2)
-    ATL_ITEM("AT+CMD1", NULL, NULL, 3, 100, 2, 1, NULL),
-    
-    // On success, skip next command (jump 2 steps)
-    ATL_ITEM("AT+CMD2", NULL, NULL, 3, 100, -1, 2, NULL),
-    
-    // On error, go back to previous command
-    ATL_ITEM("AT+CMD3", NULL, NULL, 3, 100, -1, 1, NULL)
-};
+atl_chain_run(chain);
 ```
