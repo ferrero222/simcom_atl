@@ -129,6 +129,7 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
 bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
 {
   DBC_REQUIRE(201, param);
+  DBC_REQUIRE(202, atl_get_init().init);
   atl_mdl_tcp_server_t* tcp = (atl_mdl_tcp_server_t*)param;
   if(atl_mdl_gprs_send_len && atl_mdl_gprs_send_len < strlen(tcp->data)) return false;
   size_t size = strlen(ATL_CMD_SAVE) + strlen(tcp->data) + strlen(ATL_CMD_CTRL_Z) +1; 
@@ -145,8 +146,8 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
   atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
   {
     ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: CONNECT OK", NULL, 2, 250,  0, 1, NULL, NULL),
-    ATL_ITEM("AT+CIPSEND=",                              ">", NULL, 2, 250,  0, 1, NULL, NULL),
-    ATL_ITEM("",                              "+IPD&SEND OK", NULL, 2, 250,  0, 0, NULL, NULL),
+    ATL_ITEM(cipsend,                                    ">", NULL, 2, 250,  0, 1, NULL, NULL),
+    ATL_ITEM(datacmd,                         "+IPD&SEND OK", NULL, 2, 250,  0, 0, NULL, NULL),
   };
   tlsf_free(atl_get_init().atl_tlsf, datacmd);
   if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;

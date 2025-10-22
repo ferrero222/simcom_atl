@@ -10,6 +10,7 @@
  * Include files
  ******************************************************************************/
 #include "atl_core.h"
+#include "atl_mdl_tcp_server.h"
 #include "atl_mdl_general.h"
 #include "atl_mdl_tcp.h"
 #include "dbc_assert.h"
@@ -35,13 +36,7 @@ DBC_MODULE_NAME("ATL_MDL_TCP_SERVER");
 /*******************************************************************************
  * Function implementation - global ('extern') and local ('static')
  ******************************************************************************/
-/*******************************************************************************
- ** @brief  Function to cerate an instance of tcp server
- ** @param  None. 
- ** @return chain instance
- ******************************************************************************
-atl_chain_t* atl_mld_tcp_server_create(atl_mdl_tcp_server_t* tcp)
-{
+/*
   chain_step_t server_steps[] = 
   {    
     ATL_CHAIN("MODEM INIT",     "GPRS INIT",      "MODEM RESET", atl_mdl_modem_init,          NULL, NULL, 3),
@@ -50,118 +45,197 @@ atl_chain_t* atl_mld_tcp_server_create(atl_mdl_tcp_server_t* tcp)
     ATL_CHAIN("SOCKET CONNECT", "MODEM RTD",      "GPRS DEINIT", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
 
     ATL_CHAIN_LOOP_START(0), 
-    ATL_CHAIN("MODEM RTD",          "SOCKET SEND RECIVE", "SOCKET DISCONNECT", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
-    ATL_CHAIN("SOCKET SEND RECIVE", "MODEM RTD",          "SOCKET DISCONNECT", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
+    ATL_CHAIN("MODEM RTD",          "SOCKET SEND RECIVE", "SOCKET DISCONNECT", atl_mdl_rtd, NULL, NULL, 3),
+    ATL_CHAIN("SOCKET SEND RECIVE", "MODEM RTD",          "SOCKET DISCONNECT", atl_mdl_gprs_socket_send_recieve, NULL, NULL, 3),
     ATL_CHAIN_LOOP_END,
 
-    ATL_CHAIN("SOCKET DISCONNECT", "SOCKET CONFIG", "MODEM RESET", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
-    ATL_CHAIN("GPRS DEINIT",       "GPRS INIT",     "MODEM RESET", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
-    ATL_CHAIN("MODEM RESET",       "GPRS INIT",     "MODEM RESET", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
+    ATL_CHAIN("SOCKET DISCONNECT", "SOCKET CONFIG", "MODEM RESET", atl_mdl_gprs_socket_disconnect, NULL, NULL, 3),
+    ATL_CHAIN("GPRS DEINIT",       "GPRS INIT",     "MODEM RESET", atl_mdl_gprs_deinit, NULL, NULL, 3),
+    ATL_CHAIN("MODEM RESET",       "GPRS INIT",     "MODEM RESET", atl_mdl_modem_reset, NULL, NULL, 3),
   };
-  atl_chain_t *chain = atl_chain_create("ServerTCP", server_steps, sizeof(server_steps)/sizeof(server_steps[0]), NULL);
-  return chain;
-}
 */
 
 /*******************************************************************************
- ** @brief  Handler of tcp stream data
- ** @param  cb  cb when proc will be done. 
- ** @return true - proc started, false - smthg is wrong
+ ** @brief  Find IPD header in buffer
+ ** @param  data         Buffer to search
+ ** @param  len          Buffer length
+ ** @return Pointer to start of IPD header or NULL if not found
  ******************************************************************************/
-void atl_mld_tcp_server_stream_data_handler(uint8_t* data, uint16_t len)
+static uint8_t* find_ipd_header(uint8_t* data, uint16_t len)
 {
-  static uint8_t buffer[STREAM_DATA_BUFFER_SIZE];
-  static uint16_t buffer_len = 0;      
-  static int expected_data_len = -1;  
-  static uint16_t header_len = 0;
-  if(buffer_len + len > STREAM_DATA_BUFFER_SIZE)
+  for (uint16_t i = 0; i + 3 < len; i++) 
   {
-    ATL_DEBUG("[INFO] overwriting stream data",__LINE__ , __FUNCTION__);
-    buffer_len = 0;
-    expected_data_len = -1;
-    header_len = 0;
-    return;
+    if(data[i] == '+' && data[i+1] == 'I' && data[i+2] == 'P' && data[i+3] == 'D') return data + i;
   }
-  memcpy(buffer + buffer_len, data, len);
-  buffer_len += len;
-  while(1) //main work with stream
+  return NULL;
+}
+
+/*******************************************************************************
+ ** @brief  Parse IPD header
+ ** @param  header_start Start of IPD header
+ ** @param  data_len     Length of available data from header start
+ ** @param  out_payload_len  Output parsed payload length
+ ** @param  out_header_len   Output parsed header length
+ ** @return true if header parsed successfully
+ ******************************************************************************/
+static bool parse_ipd_header(uint8_t* header_start, uint16_t data_len, int16_t* out_payload_len, uint16_t* out_header_len)
+{
+  if(data_len < 10) return false; // Minimum header length
+  int payload_len = 0;
+  char* colon_ptr = NULL;
+  // Try to parse header format: "+IPD,<len>,TCP:"
+  int ret = sscanf((char*)header_start, "+IPD,%d,TCP:", &payload_len);
+  if(ret != 1 || payload_len <= 0) return false;
+  // Find the colon to determine header length
+  colon_ptr = strchr((char*)header_start, ':');
+  if (!colon_ptr) return false;
+  *out_payload_len = payload_len;
+  *out_header_len = (uint16_t)(colon_ptr - (char*)header_start + 1);
+  return true;
+}
+
+/*******************************************************************************
+ ** @brief  Process complete packet
+ ** @param  ctx          Stream context
+ ** @param  cb           Callback for complete packets
+ ******************************************************************************/
+static void process_complete_packet(atl_tcp_stream_ctx_t* ctx, atl_stream_data_cb cb)
+{
+  uint8_t* payload = ctx->buffer + ctx->header_len;
+  uint16_t total_packet_len = ctx->header_len + ctx->expected_len;
+  ATL_DEBUG("[INFO] Found full TCP stream packet, len: %d", ctx->expected_len);
+  if(cb) cb(payload, ctx->expected_len);
+  // Remove processed packet from buffer
+  ctx->data_len -= total_packet_len;
+  if(ctx->data_len > 0) memmove(ctx->buffer, ctx->buffer + total_packet_len, ctx->data_len);
+  // Reset parsing state
+  ctx->expected_len = -1;
+  ctx->header_len = 0;
+  ctx->packet_in_progress = false;
+}
+
+/*******************************************************************************
+ ** @brief  Initialize TCP stream context
+ ** @param  ctx          Pointer to context
+ ** @param  packet_size  Max packet size
+ ** @return true if success, false otherwise
+ ******************************************************************************/
+bool atl_tcp_stream_ctx_init(atl_tcp_stream_ctx_t* ctx, uint16_t packet_size)
+{
+  DBC_REQUIRE(101, atl_get_init().init);
+  ctx->buffer = (uint8_t*)tlsf_malloc(atl_get_init().atl_tlsf, packet_size);
+  if (!ctx->buffer) 
   {
-    if(expected_data_len < 0) //no waiting data
-    {
-      uint8_t* pos = NULL;
-      uint16_t i = 0;
-      for(i = 0; i + 8 < buffer_len; i++) 
-      {
-        if (buffer[i] == '+' && buffer[i+1]=='I' && buffer[i+2]=='P' && buffer[i+3]=='D') 
-        {
-          pos = buffer + i;
-          break;
-        }
-      }
-      if(!pos) //sequence wasnt found, delete trash and save last 4 bytes in case if that is start of "+IPD"
-      {
-        if(buffer_len > 4) 
-        {
-          memmove(buffer, buffer + buffer_len - 4, 4);
-          buffer_len = 4;
-        }
-        break; //leave
-      }
-      { //trying to parce header and get data len
-        int data_len = 0;
-        uint16_t pos_index = pos - buffer;
-        int ret = 0;
-        if(pos_index > 0) //delete trash
-        {
-          memmove(buffer, pos, buffer_len - pos_index);
-          buffer_len -= pos_index;
-          pos = buffer;
-        }
-        ret = sscanf((char*)pos, "+IPD,%d,TCP:", &data_len);
-        if(ret == 1 && data_len != 0)
-        {
-          char* p_colon = NULL;
-          expected_data_len = data_len;
-          header_len = (uint16_t)strlen("+IPD,") + 0; 
-          p_colon = strchr((char*)pos, ':');
-          if(p_colon)
-          {
-            header_len = (uint16_t)((uint8_t*)p_colon - pos + 1);
-            continue;
-          }
-        } 
-        { //error proc, we found bad +IPD, delete it and proc again
-          memmove(buffer, buffer +4, 4);
-          buffer_len -= 4;
-          ATL_DEBUG("[INFO] incorrect stream header data",__LINE__ , __FUNCTION__);
-        }
-      }
-    }
-    if(expected_data_len >= 0)
-    {
-      if(buffer_len >= header_len +expected_data_len) //we got full data block, lets do CB and check for new stream block
-      {
-        uint8_t* payload = buffer +header_len;
-        uint16_t total_len = 0;
-        ATL_DEBUG("[INFO] found full correct stream tcp packet, len: %d", __LINE__ , __FUNCTION__, expected_data_len);    
-        if(sm_ctx && sm_ctx->rx_cb) sm_ctx->rx_cb(payload, expected_data_len);
-        total_len = header_len +expected_data_len;
-        buffer_len -= total_len;
-        if (buffer_len > 0)  memmove(buffer, buffer + total_len, buffer_len);
-        expected_data_len = -1;
-        header_len = 0;
-      } 
-      else //no data, leave
-      {
-        ATL_DEBUG("[INFO] wait full stream data",__LINE__ , __FUNCTION__);
-        break;
-      }
-    }
+      ATL_DEBUG("[ERROR] Failed to allocate stream buffer");
+      return false;
+  }
+  ctx->buffer_size = packet_size;
+  ctx->data_len = 0;
+  ctx->expected_len = -1;
+  ctx->header_len = 0;
+  ctx->packet_in_progress = false;
+  return true;
+}
+
+/*******************************************************************************
+ ** @brief  Cleanup TCP stream context
+ ** @param  ctx          Pointer to context
+ ******************************************************************************/
+void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx)
+{
+  if (ctx && ctx->buffer) 
+  {
+    tlsf_free(atl_get_init().atl_tlsf, ctx->buffer);
+    ctx->buffer = NULL;
+    ctx->buffer_size = 0;
+    ctx->data_len = 0;
   }
 }
 
-
-
+/*******************************************************************************
+ ** @brief  Handle TCP stream data
+ ** @param  ctx          Stream context (per connection)
+ ** @param  data         Pointer to incoming data
+ ** @param  len          Data length
+ ** @param  cb           Callback when full packet found
+ ** @return true if data processed successfully
+ ******************************************************************************/
+bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* data, uint16_t len, atl_stream_data_cb cb)
+{
+  ATL_CRITICAL_ENTER
+  DBC_REQUIRE(201, atl_get_init().init);
+  DBC_REQUIRE(202, ctx != NULL);
+  DBC_REQUIRE(203, ctx->buffer != NULL);
+  // Check if new data fits in buffer
+  if (ctx->data_len + len > ctx->buffer_size) 
+  {
+    ATL_DEBUG("[INFO] Stream buffer overflow, resetting");
+    ctx->data_len = 0;
+    ctx->expected_len = -1;
+    ctx->header_len = 0;
+    ctx->packet_in_progress = false;
+    ATL_CRITICAL_EXIT
+    return false;
+  }
+  // Append new data to buffer
+  memcpy(ctx->buffer + ctx->data_len, data, len);
+  ctx->data_len += len;
+  // Process all complete packets in buffer
+  while (ctx->data_len > 0) 
+  {
+    if (!ctx->packet_in_progress) 
+    {
+      // Look for IPD header
+      uint8_t* ipd_start = find_ipd_header(ctx->buffer, ctx->data_len);
+      if (!ipd_start) 
+      {
+        // No header found, keep last few bytes that could be start of header
+        const uint16_t keep_bytes = 4;
+        if (ctx->data_len > keep_bytes) 
+        {
+          memmove(ctx->buffer, ctx->buffer + ctx->data_len - keep_bytes, keep_bytes);
+          ctx->data_len = keep_bytes;
+        }
+        break;
+      }
+      
+      // Remove data before header
+      uint16_t header_offset = (uint16_t)(ipd_start - ctx->buffer);
+      if (header_offset > 0) 
+      {
+        memmove(ctx->buffer, ipd_start, ctx->data_len - header_offset);
+        ctx->data_len -= header_offset;
+      }
+      
+      // Parse header
+      if (!parse_ipd_header(ctx->buffer, ctx->data_len, &ctx->expected_len, &ctx->header_len)) 
+      {
+        // Invalid header, skip 4 bytes ("+IPD") and continue
+        memmove(ctx->buffer, ctx->buffer + 4, ctx->data_len - 4);
+        ctx->data_len -= 4;
+        ATL_DEBUG("[INFO] Invalid stream header, skipping");
+        continue;
+      }
+      
+      ctx->packet_in_progress = true;
+    }
+  
+    // Check if we have complete packet
+    if (ctx->packet_in_progress && ctx->data_len >= ctx->header_len + ctx->expected_len)
+    {
+        process_complete_packet(ctx, cb);
+    } 
+    else 
+    {
+      // Incomplete packet, wait for more data
+      ATL_DEBUG("[INFO] Waiting for full stream data");
+      break;
+    }
+  }
+  
+  ATL_CRITICAL_EXIT
+  return true;
+}
 
 
 

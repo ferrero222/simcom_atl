@@ -32,8 +32,6 @@
  
 #define ATL_DEBUG_ENABLED        1
 
-#define ATL_FREQUENCY            100 //Hz FIXED 1 per 10ms
-
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/

@@ -323,7 +323,7 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
   chain_step_t *steps_copy = (chain_step_t*)tlsf_malloc(atl_get_init().atl_tlsf, step_count * sizeof(chain_step_t));
   if(!steps_copy) 
   {
-    tlsf_free(atl_get_init().atl_tlsf, (chain);
+    tlsf_free(atl_get_init().atl_tlsf, (chain));
     return NULL;
   }
   
@@ -344,8 +344,8 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
   chain->loop_stack = (uint32_t*)tlsf_malloc(atl_get_init().atl_tlsf, chain->loop_stack_size * sizeof(uint32_t));
   if(!chain->loop_stack) 
   {
-    tlsf_free(atl_get_init().atl_tlsf, (chain->steps);
-    tlsf_free(atl_get_init().atl_tlsf, (chain);
+    tlsf_free(atl_get_init().atl_tlsf, (chain->steps));
+    tlsf_free(atl_get_init().atl_tlsf, (chain));
     return NULL;
   }
   

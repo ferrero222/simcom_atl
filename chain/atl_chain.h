@@ -138,69 +138,69 @@ typedef struct atl_chain_t {
  ** @param cb         User callback for chain completion
  ** @return Pointer to created chain, NULL on error
  *******************************************************************************/
-atl_chain_t* atl_chain_create(const char *name, chain_step_t *steps, uint32_t step_count, atl_entity_cb_t cb);
+atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count);
 
 /*******************************************************************************
- ** @brief Destroy chain and free all resources
- ** @param chain Chain to destroy
+ ** @brief  Destroy chain and tlsf_free(atl_get_init().atl_tlsf,  all resources
+ ** @param  chain Chain to destroy
  ** @retval none
  *******************************************************************************/
-void atl_chain_destroy(atl_chain_t *chain);
+void atl_chain_destroy(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Start chain execution
  ** @param chain Chain to start
  ** @return true if started successfully, false otherwise
  *******************************************************************************/
-bool atl_chain_start(atl_chain_t *chain);
+bool atl_chain_start(atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Stop chain execution
  ** @param chain Chain to stop
  ** @retval none
  *******************************************************************************/
-void atl_chain_stop(atl_chain_t *chain);
+void atl_chain_stop(atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Reset chain state (steps, counters, etc.)
  ** @param chain Chain to reset
  ** @retval none
  *******************************************************************************/
-void atl_chain_reset(atl_chain_t *chain);
+void atl_chain_reset(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Execute one step of the chain (non-blocking)
  ** @param chain Chain to execute
  ** @return true if chain should continue, false if completed or error
  *******************************************************************************/
-bool atl_chain_run(atl_chain_t *chain);
+bool atl_chain_run(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Check if chain is currently running
  ** @param chain Chain to check
  ** @return true if running, false otherwise
  *******************************************************************************/
-bool atl_chain_is_running(atl_chain_t *chain);
+inline bool atl_chain_is_running(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Get current step index
  ** @param chain Chain
  ** @return Current step index
  *******************************************************************************/
-uint32_t atl_chain_get_current_step(atl_chain_t *chain);
+inline uint32_t atl_chain_get_current_step(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Get current step name
  ** @param chain Chain
  ** @return Current step name or NULL if not available
  *******************************************************************************/
-const char* atl_chain_get_current_step_name(atl_chain_t *chain);
+inline const char* atl_chain_get_current_step_name(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Print chain execution statistics
  ** @param chain Chain to print stats for
  ** @retval none
  *******************************************************************************/
-void atl_chain_print_stats(atl_chain_t *chain);
+void atl_chain_print_stats(const atl_chain_t* const chain);
 
 #endif // ATL_CHAIN_H
