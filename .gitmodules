@@ -1,0 +1,13 @@
+[submodule "libs/embedded-test"]
+	path = libs/embedded-test
+	url = https://github.com/QuantumLeaps/Embedded-Test.git
+[submodule "libs/dbc"]
+	path = libs/dbc
+	url = https://github.com/QuantumLeaps/DBC-for-embedded-C.git
+[submodule "libs/ringslice"]
+	path = libs/ringslice
+	url = https://github.com/ferrero222/ringslice.git
+	branch = dev
+[submodule "libs/tlsf"]
+	path = libs/tlsf
+	url = https://github.com/mattconte/tlsf.git

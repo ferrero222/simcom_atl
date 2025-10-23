@@ -161,8 +161,7 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
                : ringslice_subslice_gap(rs_req, rs_res); // REQ\r\r\nDATA\r\n\r\nOK\r\n
   }
 
-  const ringslice_t tmp = ringslice_subslice(rs_data, 0, 2);
-  if((ringslice_len(rs_data) <= 2 *crlf_len) || (ringslice_strcmp(&tmp, ATL_CMD_CRLF))) // Validate data slice format
+  if((ringslice_len(rs_data) <= 2 *crlf_len) || (ringslice_strncmp(&rs_data, ATL_CMD_CRLF, 2))) // Validate data slice format
   {
     *rs_data = (ringslice_t){0};
     return;
