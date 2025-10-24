@@ -12,11 +12,13 @@
 #include "atl_core.h"
 #include "atl_mdl_sms.h"
 #include "dbc_assert.h"
+#include "ringslice.h" 
+#include <stdio.h>
 
 /*******************************************************************************
  * Local pre-processor symbols/macros ('#define')
  ******************************************************************************/
-DBC_MODULE_NAME("ATL_MDL_SMS");
+DBC_MODULE_NAME("ATL_MDL_SMS")
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
@@ -42,7 +44,7 @@ DBC_MODULE_NAME("ATL_MDL_SMS");
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(101, param);
   char cmgf[32] = {0};
@@ -52,7 +54,7 @@ bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, c
   {
     ATL_ITEM(cmgf, NULL, NULL, 2, 150, 0, 0, NULL, NULL),
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }
 
@@ -65,17 +67,17 @@ bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, c
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(201, param);
   char csca[64] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
-  snprintf(csca, sizeof(csca), "%sAT+CSCA=%d%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CRLF); 
+  snprintf(csca, sizeof(csca), "%sAT+CSCA=%s%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CRLF); 
   atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
   {
     ATL_ITEM(csca, NULL, NULL, 2, 150, 0, 0, NULL, NULL),
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }
 
@@ -88,7 +90,7 @@ bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, const
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(301, param);
   char cmgs[64] = {0};
@@ -103,7 +105,7 @@ bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, co
     ATL_ITEM(cmgs,                             ">", NULL, 1, 150, 0, 1, NULL, NULL),
     ATL_ITEM(text,                            NULL, NULL, 2, 500, 0, 0, NULL, NULL),
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }
 
@@ -116,7 +118,7 @@ bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, co
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(401, param);
   char cmgr[64] = {0};
@@ -128,7 +130,7 @@ bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, const v
     ATL_ITEM(cmgr, "+CMGR: \"%*[^\"]\",\"%[^\"]\",%*[^\x0d]\x0d\x0a%[^\x0d]", NULL, 2, 150, 0, 0, NULL, ATL_ARG(atl_mdl_sms_msg_t, num), ATL_ARG(atl_mdl_sms_msg_t, msg)),
 
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_sms_msg_t), ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_sms_msg_t), ctx)) return false;
   return true;
 }
 
@@ -141,7 +143,7 @@ bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, const v
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(501, param);
   char cmgd[64] = {0};
@@ -151,7 +153,7 @@ bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, const
   { 
     ATL_ITEM(cmgd, NULL, NULL, 1, 150, 0, 0, NULL, NULL),
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }
 
@@ -164,7 +166,7 @@ bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, const
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(601, param);
   char cnmi[64] = {0};
@@ -174,7 +176,7 @@ bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, con
   { 
     ATL_ITEM(cnmi, NULL, NULL, 1, 150, 0, 0, NULL, NULL),
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }
 
@@ -188,7 +190,7 @@ void atl_mdl_sms_urc_cb(const ringslice_t urc_slice)
 {
   uint16_t index = 0;
   atl_mdl_sms_msg_t sms = {0};
-  ringclise_scanf(urc_slice, "+CMTI:%*[^,],%d\x0d", &sms.index);
+  ringslice_scanf(&urc_slice, "+CMTI:%*[^,],%d\x0d", &sms.index);
   if(0 != index) atl_mdl_sms_read(NULL, (void*)&(atl_mdl_sms_msg_t){.index = sms.index}, NULL);
 }
 

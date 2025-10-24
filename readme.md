@@ -1,3 +1,5 @@
+# !!! PROJECT IS UNDER DEVELOPMENT !!!
+
 # ATL Documentation / Документация ATL
 
 ## Содержание
@@ -12,7 +14,9 @@ ATL (AT Command Library) предоставляет комплексное ре�
 
 - **Асинхронность**: Все процессы библиотеки выполняются без единого блокирования системы
 - **Управление командами**: АПИ для отправки групп AT-команд и построения сложных логических цепочек
-- **Управление памятью**: Пользовательский динамический аллокатор TLSF с контролем фрагментации, выравниванием и статическим выделением буфера https://github.com/mattconte/tlsf
+- **Память**: Библиотека после инициализации использует около 2.5кБ оперативной памяти по дефолту, зависит от размера выделенного буфера для  
+    пользовательского динамического аллокатора TLSF. Выделять за раз в TLSF можно блок не более 16кБ. Для выделения памяти TLSF единоразово 
+    создает как раз структуру в 500 байт. https://github.com/mattconte/tlsf
 - **Обработка ошибок**: Design by Contract (DBC) для надежной проверки ошибок https://github.com/QuantumLeaps/DBC-for-embedded-C
 - **Потокобезопасность**: Защита критических секций для многопоточных приложений
 - **Поддержка URC**: Обработка URC для асинхронных событий
@@ -92,8 +96,8 @@ void timer_10ms_handler(void) {
 
 В файле `atl_core.h` представлено АПИ для работы с АТ командами и самим ядром библиотеки, содержащее:
 
-- `atl_enqueue`
-- `atl_dequeue` 
+- `atl_entity_enqueue`
+- `atl_entity_dequeue` 
 - `atl_urc_enqueue`
 - `atl_urc_dequeue`
 - `atl_core_proc`
@@ -124,7 +128,7 @@ atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][.
   ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,             "+CIPSHOWTP: 1", NULL, 1, 150, 0, 1, NULL, NULL),
   ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,                       NULL, NULL, 2, 150, 0, 0, NULL, NULL),
 };
-atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx);
+atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx);
 ```
 
 ### Пример 2
@@ -142,7 +146,7 @@ atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][.
   ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL,                       NULL, 2, 600, 0, 1, NULL, NULL),                
   ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL,                       NULL, 2, 600, 0, 0, atl_mdl_general_ceng_cb, NULL),                         
 };
-if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), ctx)) return false;
+if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), ctx)) return false;
 ```
 
 ### Параметры АТ команды
@@ -158,13 +162,13 @@ if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t)
 - **[STEPERROR]** - в случае возникновения ошибки у команды мы можем перескочить на несколько шагов вперед или назад внутри группы, либо ничего не делать (-31...31)
 - **[STEPOK]** - как и в случае ошибки, но тут в случае успеха можем прошагать на какую-либо конкретную АТ команду (-31...31)
 - **[CB]** - коллбек на АТ команду, будет вызван по результату выполнения АТ команды. Можно не указывать
-- **[VA_ARG]** - аргументы для формата в виде ATL_ARG, где мы указываем какая структура и какое поле будет использоваться чтобы сохранить данные из формата. Можно не указывать
+- **[VA_ARG]** - аргументы для формата в виде ATL_ARG, где мы указываем какая структура и какое поле будет использоваться чтобы сохранить данные из формата. Можно не указывать. Максимум 6
 
-### Параметры функции atl_enqueue
+### Параметры функции atl_entity_enqueue
 
 ```c
-bool atl_enqueue(const atl_item_t* const item, const uint8_t item_amount, 
-                const atl_entity_cb_t cb, uint16_t data_size, const void* const ctx)
+bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, 
+                const atl_entity_cb_t cb, uint16_t data_size, void* const ctx)
 ```
 
 - **item** - собственно наши АТ команды
@@ -226,7 +230,7 @@ bool (*function)(atl_entity_cb_t cb, void* param, void* ctx)
 Например:
 
 ```c
-bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, const void* const ctx)
+bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(101, param);
   char cipstart[128] = {0}; 
@@ -243,7 +247,7 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
     ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0",           NULL, 1, 150,  0, 1, NULL, NULL),
     ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL,           NULL, 2, 150,  0, 0, NULL, NULL),
   };
-  if(!atl_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }
 ```

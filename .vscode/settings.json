@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "*.h": "c",
+        "atl*.h": "c",
+        "atl*.c": "c",
+        "tlsf.h": "c",
+        "ringslice.h": "c",
+        "et.h": "c"
+    },
+    "C_Cpp.default.configurationProvider": "ms-vscode.cpptools",
+    "debug.onTaskErrors": "abort",
+    "terminal.integrated.env.linux": {
+        "PATH": "/usr/bin:${env:PATH}"
+    }
+}

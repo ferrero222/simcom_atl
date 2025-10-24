@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "atl_core.h"
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
@@ -68,7 +69,6 @@ typedef enum {
   ATL_CHAIN_STEP_RUNNING,    // Function started, waiting for callback
   ATL_CHAIN_STEP_SUCCESS,    // Step completed successfully
   ATL_CHAIN_STEP_ERROR,      // Step completed with error
-  ATL_CHAIN_STEP_RETRY_WAIT, // Waiting before retry attempt
 } atl_step_exec_state_t;
 
 typedef enum {              
@@ -85,7 +85,7 @@ typedef struct {
   union 
   {
     struct {
-      bool (*function)(atl_entity_cb_t cb, void* param, void* ctx); // Function to execute
+      bool (*function)(const atl_entity_cb_t cb, const void* const, void* const ctx); // Function to execute
       atl_entity_cb_t cb;             // Callback for function
       void* param;                    // Pass params to function
       void* ctx;                      // Context for function executing
@@ -141,11 +141,11 @@ typedef struct atl_chain_t {
 atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count);
 
 /*******************************************************************************
- ** @brief  Destroy chain and tlsf_free(atl_get_init().atl_tlsf,  all resources
+ ** @brief  Destroy chain and all resources
  ** @param  chain Chain to destroy
  ** @retval none
  *******************************************************************************/
-void atl_chain_destroy(const atl_chain_t* const chain);
+void atl_chain_destroy(atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Start chain execution
@@ -166,35 +166,35 @@ void atl_chain_stop(atl_chain_t* const chain);
  ** @param chain Chain to reset
  ** @retval none
  *******************************************************************************/
-void atl_chain_reset(const atl_chain_t* const chain);
+void atl_chain_reset(atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Execute one step of the chain (non-blocking)
  ** @param chain Chain to execute
  ** @return true if chain should continue, false if completed or error
  *******************************************************************************/
-bool atl_chain_run(const atl_chain_t* const chain);
+bool atl_chain_run(atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Check if chain is currently running
  ** @param chain Chain to check
  ** @return true if running, false otherwise
  *******************************************************************************/
-inline bool atl_chain_is_running(const atl_chain_t* const chain);
+bool atl_chain_is_running(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Get current step index
  ** @param chain Chain
  ** @return Current step index
  *******************************************************************************/
-inline uint32_t atl_chain_get_current_step(const atl_chain_t* const chain);
+uint32_t atl_chain_get_current_step(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Get current step name
  ** @param chain Chain
  ** @return Current step name or NULL if not available
  *******************************************************************************/
-inline const char* atl_chain_get_current_step_name(const atl_chain_t* const chain);
+const char* atl_chain_get_current_step_name(const atl_chain_t* const chain);
 
 /*******************************************************************************
  ** @brief Print chain execution statistics

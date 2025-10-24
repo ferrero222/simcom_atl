@@ -15,11 +15,13 @@
 #include "atl_mdl_tcp.h"
 #include "dbc_assert.h"
 #include "atl_chain.h"
+#include <stdio.h>
+#include <string.h>
 
 /*******************************************************************************
  * Local pre-processor symbols/macros ('#define')
  ******************************************************************************/
-DBC_MODULE_NAME("ATL_MDL_TCP_SERVER");
+DBC_MODULE_NAME("ATL_MDL_TCP_SERVER")
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
@@ -123,10 +125,10 @@ static void process_complete_packet(atl_tcp_stream_ctx_t* ctx, atl_stream_data_c
 bool atl_tcp_stream_ctx_init(atl_tcp_stream_ctx_t* ctx, uint16_t packet_size)
 {
   DBC_REQUIRE(101, atl_get_init().init);
-  ctx->buffer = (uint8_t*)tlsf_malloc(atl_get_init().atl_tlsf, packet_size);
+  ctx->buffer = (uint8_t*)atl_tlsf_malloc(packet_size);
   if (!ctx->buffer) 
   {
-      ATL_DEBUG("[ERROR] Failed to allocate stream buffer");
+      ATL_DEBUG("[ERROR] Failed to allocate stream buffer", NULL);
       return false;
   }
   ctx->buffer_size = packet_size;
@@ -145,7 +147,7 @@ void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx)
 {
   if (ctx && ctx->buffer) 
   {
-    tlsf_free(atl_get_init().atl_tlsf, ctx->buffer);
+    atl_tlsf_free(ctx->buffer, ctx->buffer_size);
     ctx->buffer = NULL;
     ctx->buffer_size = 0;
     ctx->data_len = 0;
@@ -169,7 +171,7 @@ bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* 
   // Check if new data fits in buffer
   if (ctx->data_len + len > ctx->buffer_size) 
   {
-    ATL_DEBUG("[INFO] Stream buffer overflow, resetting");
+    ATL_DEBUG("[INFO] Stream buffer overflow, resetting", NULL);
     ctx->data_len = 0;
     ctx->expected_len = -1;
     ctx->header_len = 0;
@@ -213,7 +215,7 @@ bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* 
         // Invalid header, skip 4 bytes ("+IPD") and continue
         memmove(ctx->buffer, ctx->buffer + 4, ctx->data_len - 4);
         ctx->data_len -= 4;
-        ATL_DEBUG("[INFO] Invalid stream header, skipping");
+        ATL_DEBUG("[INFO] Invalid stream header, skipping", NULL);
         continue;
       }
       
@@ -228,7 +230,7 @@ bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* 
     else 
     {
       // Incomplete packet, wait for more data
-      ATL_DEBUG("[INFO] Waiting for full stream data");
+      ATL_DEBUG("[INFO] Waiting for full stream data", NULL);
       break;
     }
   }

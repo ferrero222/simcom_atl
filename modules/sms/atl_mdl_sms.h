@@ -47,7 +47,7 @@ typedef struct atl_mdl_sms_msg_t {
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to set sc
@@ -58,7 +58,7 @@ bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, c
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to send text sms
@@ -69,7 +69,7 @@ bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, const
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to read SMS
@@ -80,7 +80,7 @@ bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, co
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to delete SMS
@@ -91,7 +91,7 @@ bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, const v
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to indicate SMS
@@ -102,7 +102,7 @@ bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, const
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  URC cb example for catch SMS

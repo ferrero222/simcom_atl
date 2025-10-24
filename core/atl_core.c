@@ -11,13 +11,16 @@
  ******************************************************************************/
 #include "atl_core.h"
 #include "dbc_assert.h"
-#include "ringslice.h"
-#include "tlsf.h"
+#include "atl_mdl_general.h"
+#include "stdlib.h"
 
 /*******************************************************************************
  * Local pre-processor symbols/macros ('#define')
  ******************************************************************************/
-DBC_MODULE_NAME("ATL_CORE");
+DBC_MODULE_NAME("ATL_CORE")
+
+#warning "TODO: Format + arg in one single macros \
+                Ptrs can be without data_size"
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
@@ -25,6 +28,16 @@ DBC_MODULE_NAME("ATL_CORE");
 /*******************************************************************************
  * Local function prototypes ('static')
  ******************************************************************************/
+static void atl_parcer_process_urcs(const ringslice_t* me);
+static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req);
+static void atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
+static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data);
+static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+                                const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity);
+static int atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern);
+static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item);
+DBC_NORETURN void DBC_fault_handler(char const* module, int label);
+
 /*******************************************************************************
  * Local types definitions
  ******************************************************************************/
@@ -32,9 +45,9 @@ DBC_MODULE_NAME("ATL_CORE");
  * Local variable definitions ('static')
  ******************************************************************************/
 static atl_entity_queue_t atl_entity_queue = {0};         //entity queue
-static atl_urc_t atl_urc_queue[ATL_URC_QUEUE_SIZE] = {0}; //urc queue
+static atl_urc_queue_t atl_urc_queue[ATL_URC_QUEUE_SIZE] = {0}; //urc queue
 static atl_init_t atl_init_struct = {0};                         //init struct
-static uint8_t atl_mem_pool[ATL_MEMORY_POOL_SIZE] = {0};  //memory pool
+static uint8_t* atl_mem_pool = NULL;  //memory pool
 static uint32_t atl_time = 0;
 
 /*******************************************************************************
@@ -70,7 +83,7 @@ static int atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_
   atl_parcer_process_urcs(&rs_me); // Process URCs first
 
   atl_parcer_find_rs_req(&rs_me, &rs_req, item->req); // Find request and response in buffer
-  atl_parcer_find_rs_res(&rs_req, &rs_res);
+  atl_parcer_find_rs_res(&rs_me, &rs_req, &rs_res);
   atl_parcer_find_rs_data(&rs_me, &rs_req, &rs_res, &rs_data); // Extract data section
 
   res = atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, item, entity); // Proc data
@@ -113,24 +126,28 @@ static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* con
 
   *rs_req = ringslice_strstr(me, req);
 
-  if(!ringslice_is_empty(rs_req)) *rs_req = ringslice_subslice(rs_req, 0, req_len);
+  if(!ringslice_is_empty(rs_req)) *rs_req = ringslice_subslice(rs_req, 0, req_len+1);
 }
 
 /** 
  * @brief Find result ring slice 
  */
-static void atl_parcer_find_rs_res(const ringslice_t* const rs_req, ringslice_t* const rs_res)
+static void atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res)
 {
   DBC_REQUIRE(108, rs_req); 
   DBC_REQUIRE(109, rs_res); 
 
   if(ringslice_is_empty(rs_req)) return;
 
-  *rs_res = ringslice_strstr(rs_req, ATL_CMD_ERROR);
-  if(!ringslice_is_empty(rs_res)) *rs_res = ringslice_subslice(rs_res, 0, strlen(ATL_CMD_ERROR));
+  ringslice_t tmp = ringslice_subslice_after(me, rs_req, 0);
+
+  if(ringslice_is_empty(&tmp)) return;
+
+  *rs_res = ringslice_strstr(&tmp, ATL_CMD_ERROR);
+  if(!ringslice_is_empty(rs_res)) *rs_res = ringslice_subslice(rs_res, 0, strlen(ATL_CMD_ERROR)+1);
   
-  *rs_res = ringslice_strstr(rs_req, ATL_CMD_OK);
-  if(!ringslice_is_empty(rs_res)) *rs_res = ringslice_subslice(rs_res, 0, strlen(ATL_CMD_OK));
+  *rs_res = ringslice_strstr(&tmp, ATL_CMD_OK);
+  if(!ringslice_is_empty(rs_res)) *rs_res = ringslice_subslice(rs_res, 0, strlen(ATL_CMD_OK)+1);
 }
 
 /** 
@@ -151,17 +168,17 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
   } 
   else if(!ringslice_is_empty(rs_req) && ringslice_is_empty(rs_res)) //Request but no response yet, data is after request REQ\r\r\nDATA\r\n
   {
-    *rs_data = ringslice_subslice_after(rs_req, me, 0);
+    *rs_data = ringslice_subslice_after(me, rs_req, 0);
   } 
   else if(!ringslice_is_empty(rs_req) && !ringslice_is_empty(rs_res)) //Both request and response present
   {
-    ringslice_t after_req = ringslice_subslice_after(rs_req, me, strlen(ATL_CMD_CRLF"OK"ATL_CMD_CRLF));
-    *rs_data = ringslice_equals(&after_req, rs_res) 
-               ? ringslice_subslice_after(rs_res, me, 0)    // REQ\r\r\nOK\r\n\r\nDATA\r\n
+    ringslice_t after_req = ringslice_subslice_after(me, rs_req, strlen(ATL_CMD_CRLF"OK"ATL_CMD_CRLF)+1);
+    *rs_data = ringslice_subslice_equals(&after_req, rs_res) 
+               ? ringslice_subslice_after(me, rs_req, 0) // REQ\r\r\nOK\r\n\r\nDATA\r\n
                : ringslice_subslice_gap(rs_req, rs_res); // REQ\r\r\nDATA\r\n\r\nOK\r\n
   }
 
-  if((ringslice_len(rs_data) <= 2 *crlf_len) || (ringslice_strncmp(&rs_data, ATL_CMD_CRLF, 2))) // Validate data slice format
+  if((ringslice_len(rs_data) <= 2 *crlf_len) || (ringslice_strncmp(rs_data, ATL_CMD_CRLF, 2))) // Validate data slice format
   {
     *rs_data = (ringslice_t){0};
     return;
@@ -201,15 +218,15 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
   
   switch((rs_req_exist << 2) | (rs_res_exist << 1) | rs_data_exist) // Bitmask: REQ[bit2] RES[bit1] DATA[bit0]
   {
-      case 0b110: // REQ RES NULL
+      case 0x6: // 0b110 - REQ RES NULL
            if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = -1;
            else if(item->answ.prefix || item->answ.format)  res = 0;
            else                                             res = 1;
            break;
-      case 0b111: // REQ RES DATA  
+      case 0x7: // 0b111 - REQ RES DATA
            if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) break;
            // Intentional fall-through
-      case 0b001: // NULL NULL DATA
+      case 0x1: // 0b001 - NULL NULL DATA
            if(item->answ.prefix) res = atl_string_boolean_ops(rs_data, item->answ.prefix);
            if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
            break;
@@ -223,7 +240,7 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
 /** 
  * @brief Boolean operation for strings in ATL
  */
-static atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern)
+static int atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern)
 {
   DBC_REQUIRE(120, rs_data); 
   DBC_REQUIRE(121, pattern);
@@ -239,8 +256,8 @@ static atl_string_boolean_ops(const ringslice_t* const rs_data, const char* cons
   for(const char* start = pattern; *start;) 
   {
     const char* end = strchr(start, sep);
-    size_t length = end ? (end - start) : strlen(start);
-    int match = (ringslice_strncmp(rs_data, start) == 0);
+    size_t length = end ? (size_t)(end - start) : strlen(start);
+    int match = (ringslice_strcmp(rs_data, start) == 0);
     if(require_all) 
     { 
       if (!match) return 0; //if only one desmatch ->exit
@@ -264,10 +281,7 @@ static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* co
   void **output_ptrs = item->answ.ptrs;
   
   int param_count = 0;
-  while (output_ptrs[param_count] != NULL) 
-  {
-    param_count++;
-  }
+  while(output_ptrs[param_count] != ATL_NULL) param_count++;
   
   DBC_ASSERT(124, format);
   DBC_ASSERT(125, output_ptrs);
@@ -283,52 +297,51 @@ static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* co
   }
 }
 
-/*******************************************************************************
- ** @brief  DBC fault override
- ** @param  none
- ** @return none
- ******************************************************************************/
-__attribute__((weak)) DBC_NORETURN void DBC_fault_handler(char const* module, int label) 
-{
-  ATL_CRITICAL_EXIT //if handler trigerred inside of critical section
-  ATL_DEBUG("[DBC FAULT]: module=%s, label=%d\n", module, label);
-  while (1) 
-  {
-    /* Typically you would trigger a system reset or safe state here */
-  }
+#ifdef ATL_TEST
+/** 
+ * @brief Test implementations for static
+ */
+int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item) { 
+  return atl_cmd_ring_parcer(entity,item);
 }
 
-/*******************************************************************************
- ** @brief  Weak function to enter into critical section
- ** @param  none
- ** @return none
- ******************************************************************************/
-__attribute__((weak)) void atl_crit_enter(void) 
-{ 
-  /* disable irq if needed */
+void _atl_parcer_process_urcs(const ringslice_t* me) { 
+  atl_parcer_process_urcs(me); 
 }
 
-/*******************************************************************************
- ** @brief  Weak function to exit critical section
- ** @param  none
- ** @return none
- ******************************************************************************/
-__attribute__((weak)) void atl_crit_exit(void)  
-{
-   /* enable irq  if needed */ 
+void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req) { 
+  atl_parcer_find_rs_req(me, rs_req, req); 
 }
 
-/*******************************************************************************
- ** @brief  Function to get lib init status
- ** @param  none
- ** @return true/false
- ******************************************************************************/
-bool atl_is_init(void)  
-{
-  ATL_CRITICAL_ENTER
-  return atl_init_struct.init;
-  ATL_CRITICAL_EXIT
+void _atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res) { 
+  atl_parcer_find_rs_res(me, rs_req, rs_res); 
 }
+
+void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data) { 
+  atl_parcer_find_rs_data(me, rs_req, rs_res, rs_data); 
+}
+
+int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+                          const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity) { 
+  return atl_parcer_post_proc(me, rs_req, rs_res, rs_data, item, entity); 
+}
+
+int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern) { 
+  return atl_string_boolean_ops(rs_data, pattern); 
+}
+
+int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item) {
+  return atl_cmd_sscanf(rs_data, item);
+}
+
+atl_entity_queue_t* _atl_get_entity_queue(void) {
+  return &atl_entity_queue;
+}
+
+atl_urc_queue_t* _atl_get_urc_queue(void) {
+  return atl_urc_queue;
+}
+#endif
 
 /*******************************************************************************
  ** @brief  Init atl lib  
@@ -340,8 +353,8 @@ bool atl_is_init(void)
  ** @param  ring_head  head of RX ring buffer. 
  ** @return none
  ******************************************************************************/
-void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, const uint8_t* const ring, 
-              const uint16_t ring_len, const uint16_t* const ring_tail, const uint16_t* const ring_head)
+void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, uint8_t* const ring, 
+              const uint16_t ring_len, uint16_t* const ring_tail, uint16_t* const ring_head)
 {
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(201, !atl_init_struct.init);
@@ -350,9 +363,11 @@ void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, const 
   DBC_REQUIRE(204, ring);
   DBC_REQUIRE(205, ring_tail);
   DBC_REQUIRE(206, ring_head);
-  ATL_DEBUG("[INFO] Initializing ATL library\n");
+  atl_mem_pool = (uint8_t*)malloc(ATL_MEMORY_POOL_SIZE);
+  DBC_ASSERT(207, atl_mem_pool);
   atl_init_struct.atl_tlsf = tlsf_create_with_pool(atl_mem_pool, ATL_MEMORY_POOL_SIZE); //memory allocator init
-  DBC_ASSERT(207, atl_init_struct.atl_tlsf);
+  DBC_ASSERT(208, atl_init_struct.atl_tlsf);
+  DBC_ASSERT(209, tlsf_check(atl_init_struct.atl_tlsf) == 0);
   atl_init_struct.atl_write = atl_write;
   atl_init_struct.atl_printf = atl_printf;
   atl_init_struct.ring = ring;
@@ -360,11 +375,14 @@ void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, const 
   atl_init_struct.ring_tail = ring_tail;
   atl_init_struct.ring_head = ring_head;
   atl_init_struct.init = true;
-  ATL_DEBUG("[INFO] ATL library initialized successfully\n");
+  atl_init_struct.tlsf_usage = tlsf_size();
+  ATL_DEBUG("[INFO] ATL library initialized successfully\n", NULL);
   ATL_DEBUG("[INFO] Memory pool size: %d bytes\n", ATL_MEMORY_POOL_SIZE);
   ATL_DEBUG("[INFO] Entity queue size: %d\n", ATL_ENTITY_QUEUE_SIZE);
-  DBC_ENSURE(208, atl_init_struct.init);
-  atl_mdl_modem_init(NULL);
+  DBC_ENSURE(209, atl_init_struct.init);
+  #ifndef ATL_TEST
+    atl_mdl_modem_init(NULL, NULL, NULL);
+  #endif
   ATL_CRITICAL_EXIT
 }
 
@@ -378,11 +396,17 @@ void atl_deinit(void)
 {
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(301, atl_init_struct.init);
-  ATL_DEBUG("[INFO] Deinitializing ATL library\n");
+  ATL_DEBUG("[INFO] Deinitializing ATL library\n", NULL);
   tlsf_destroy(atl_init_struct.atl_tlsf);
   atl_init_struct.init = false;
-  ATL_DEBUG("[INFO] ATL library deinitialized\n");
+  free(atl_mem_pool);
+  atl_mem_pool = NULL;
+  memset(&atl_entity_queue, 0, sizeof(atl_entity_queue_t));
+  memset(atl_urc_queue, 0, sizeof(atl_urc_queue_t));
+  atl_init_struct.tlsf_usage = 0;
+  ATL_DEBUG("[INFO] ATL library deinitialized\n", NULL);
   DBC_ENSURE(302, !atl_init_struct.init);
+  DBC_ENSURE(303, !atl_mem_pool);
   ATL_CRITICAL_EXIT
 }
 
@@ -397,33 +421,30 @@ void atl_deinit(void)
  ** @param  ctx          Ptr to some context of execution. Will be called in CB. Can be NULL.
  ** @return true: ok false: error while trying to append
  ******************************************************************************/
-bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, const void* const ctx)
+bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const ctx)
 {
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(401, atl_init_struct.init);
   DBC_REQUIRE(402, item != NULL);
   DBC_REQUIRE(403, item_amount > 0);
   DBC_REQUIRE(404, item_amount <= ATL_MAX_ITEMS_PER_ENTITY);
-  DBC_REQUIRE(405, cb != NULL);
   ATL_DEBUG("[INFO] Enqueueing entity with %d items\n", item_amount);
   atl_entity_t* cur_entity = &atl_entity_queue.entity[atl_entity_queue.entity_tail];
   if(atl_entity_queue.entity_cnt >= ATL_ENTITY_QUEUE_SIZE) goto error_exit;
-  cur_entity->data = tlsf_malloc(atl_init_struct.atl_tlsf, data_size);
+  cur_entity->data = atl_tlsf_malloc(data_size);
   if(!cur_entity->data && data_size) goto error_exit;
+  cur_entity->data_size = data_size;
   memset(cur_entity->data, 0, data_size);
-  cur_entity->item = tlsf_malloc(atl_init_struct.atl_tlsf, item_amount * sizeof(atl_item_t));
+  cur_entity->item = atl_tlsf_malloc(item_amount * sizeof(atl_item_t));
   if(!cur_entity->item) goto error_exit;
   for(int i = 0; i < item_amount; i++)
   {
     memcpy(&cur_entity->item[i], &item[i], sizeof(atl_item_t));
-    if(item[i].answ.ptrs != NULL && data_size)
+    if(item[i].answ.ptrs && item[i].answ.ptrs[0] != ATL_NULL && data_size)
     {
       int ptr_count = 0;
-      while(item[i].answ.ptrs[ptr_count] != NULL) 
-      {
-        ptr_count++;
-      }
-      cur_entity->item[i].answ.ptrs = tlsf_malloc(atl_init_struct.atl_tlsf, (ptr_count + 1) * sizeof(void*));
+      while(item[i].answ.ptrs[ptr_count] != ATL_NULL) ptr_count++;
+      cur_entity->item[i].answ.ptrs = atl_tlsf_malloc((ptr_count + 1) * sizeof(void*));
       if(!cur_entity->item[i].answ.ptrs) goto error_exit;
       for(int j = 0; j < ptr_count; j++)
       {
@@ -433,10 +454,10 @@ bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount,
       }
       cur_entity->item[i].answ.ptrs[ptr_count] = NULL;
     }
-    if(!strncmp(item[i].req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)))
+    if(strncmp(item[i].req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0)
     {
-      char* tmp_req = item[i].req + strlen(ATL_CMD_SAVE);
-      uint8_t* new_mem = tlsf_malloc(atl_init_struct.atl_tlsf, strlen(tmp_req) + 1);
+      char* tmp_req = item[i].req;
+      uint8_t* new_mem = atl_tlsf_malloc(strlen(tmp_req) + 1);
       if(!new_mem) goto error_exit;
       strcpy((char*)new_mem, tmp_req);
       cur_entity->item[i].req = (char*)new_mem;
@@ -452,7 +473,7 @@ bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount,
   return true;
 
   error_exit:
-    ATL_DEBUG("[ERROR] Queue failed\n"); 
+    ATL_DEBUG("[ERROR] Queue failed\n", NULL); 
     atl_deinit();        
     ATL_CRITICAL_EXIT
     return false; 
@@ -467,12 +488,12 @@ bool atl_entity_dequeue(void)
 {
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(501, atl_init_struct.init);
-  ATL_DEBUG("[INFO] Dequeueing entity\n");
+  ATL_DEBUG("[INFO] Dequeueing entity\n", NULL);
   atl_entity_t* cur_entity = &atl_entity_queue.entity[atl_entity_queue.entity_head];
   uint8_t item_amount = cur_entity->item_cnt;
   if(atl_entity_queue.entity_cnt == 0)
   {
-    ATL_DEBUG("[ERROR] Entity queue is already empty\n");
+    ATL_DEBUG("[ERROR] Entity queue is already empty\n", NULL);
     ATL_CRITICAL_EXIT
     return false;
   }
@@ -480,12 +501,15 @@ bool atl_entity_dequeue(void)
   while(item_amount)
   {
     atl_item_t* item = &cur_entity->item[cur_entity->item_cnt -item_amount];
-    if(item->req) tlsf_free(atl_init_struct.atl_tlsf, item->req); //free for each, there is check for ptr valid for free process
-    if(item->answ.ptrs) tlsf_free(atl_init_struct.atl_tlsf, item->answ.ptrs);
+    if(strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_tlsf_free(item->req, strlen(item->req) + 1);
+    uint8_t ptr_count = 0;
+    while(item->answ.ptrs[ptr_count] != ATL_NULL) ptr_count++;
+    if(ptr_count) atl_tlsf_free(item->answ.ptrs, (ptr_count + 1) * sizeof(void*));
     cur_entity->item[cur_entity->item_cnt -item_amount].req = NULL;
     --item_amount;
   }
-  if(cur_entity->item) tlsf_free(atl_init_struct.atl_tlsf, cur_entity->item);
+  if(cur_entity->data && cur_entity->data_size) atl_tlsf_free(cur_entity->data, cur_entity->data_size);
+  if(cur_entity->item) atl_tlsf_free(cur_entity->item, cur_entity->item_cnt * sizeof(atl_item_t));
   cur_entity->item = NULL;
   atl_entity_queue.entity_head = (atl_entity_queue.entity_head +1) % ATL_ENTITY_QUEUE_SIZE;
   --atl_entity_queue.entity_cnt;
@@ -500,11 +524,11 @@ bool atl_entity_dequeue(void)
  ** @param  urc  ptr to your URC.
  ** @return ture/false
  ******************************************************************************/
-bool atl_urc_enqueue(const atl_urc_t* const urc)  
+bool atl_urc_enqueue(const atl_urc_queue_t* const urc)  
 {
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(601, urc);
-  atl_urc_t* tmp = NULL;
+  atl_urc_queue_t* tmp = NULL;
   for(uint8_t i = 0; i <= ATL_URC_QUEUE_SIZE; ++i)
   {
     if(!atl_urc_queue[i].prefix) 
@@ -515,12 +539,12 @@ bool atl_urc_enqueue(const atl_urc_t* const urc)
   }
   if(!tmp) 
   {
-    ATL_DEBUG("[ERROR] URC queue is full");
+    ATL_DEBUG("[ERROR] URC queue is full", NULL);
     ATL_CRITICAL_EXIT
     return false;
   }
   memcpy(tmp, urc, ATL_URC_SIZE);
-  ATL_DEBUG("[INFO] URC enqueued successfully");
+  ATL_DEBUG("[INFO] URC enqueued successfully", NULL);
   ATL_CRITICAL_EXIT
   return true;
 }
@@ -530,23 +554,22 @@ bool atl_urc_enqueue(const atl_urc_t* const urc)
  ** @param  urc  ptr to your URC.
  ** @return ture/false
  ******************************************************************************/
-bool atl_urc_dequeue(const atl_urc_t* const urc)  
+bool atl_urc_dequeue(const atl_urc_queue_t* const urc)  
 {
   ATL_CRITICAL_ENTER
   DBC_REQUIRE(701, urc);
-  atl_urc_t* tmp = NULL;
   for(uint8_t i = 0; i <= ATL_URC_QUEUE_SIZE; ++i)
   {
     if(!atl_urc_queue[i].prefix) continue;
     if(strcmp(atl_urc_queue[i].prefix, urc->prefix) == 0)
     {
-      memset(tmp, 0, ATL_URC_SIZE);
-      ATL_DEBUG("[INFO] URC dequeued successfully");
+      memset(&atl_urc_queue[i], 0, ATL_URC_SIZE);
+      ATL_DEBUG("[INFO] URC dequeued successfully", NULL);
       ATL_CRITICAL_EXIT
       return true;
     }
   }
-  ATL_DEBUG("[INFO] URC dequeued fail");
+  ATL_DEBUG("[INFO] URC dequeued fail", NULL);
   ATL_CRITICAL_EXIT
   return false;
 }
@@ -564,7 +587,7 @@ uint16_t atl_get_cur_time(void)
 }
 
 /*******************************************************************************
- ** @brief  Function get init struct. 
+ ** @brief  Function get init. 
  ** @param  none
  ** @return none
  ******************************************************************************/
@@ -573,6 +596,31 @@ atl_init_t atl_get_init(void)
   ATL_CRITICAL_ENTER
   return atl_init_struct;
   ATL_CRITICAL_EXIT
+}
+
+/*******************************************************************************
+ ** @brief  Function to custom tlsf malloc. 
+ ** @param  none
+ ** @return none
+ ******************************************************************************/
+void* atl_tlsf_malloc(size_t size)
+{
+  if(!atl_init_struct.init) return NULL;
+  void* res = tlsf_malloc(atl_init_struct.atl_tlsf, size);
+  if(res) atl_init_struct.tlsf_usage += size;
+  return res;
+}
+
+/*******************************************************************************
+ ** @brief  Function to custom tlsf free. 
+ ** @param  none
+ ** @return none
+ ******************************************************************************/
+void atl_tlsf_free(void* ptr, size_t size)
+{
+  if(!atl_init_struct.init) return;
+  tlsf_free(atl_init_struct.atl_tlsf, ptr);
+  atl_init_struct.tlsf_usage -= size;
 }
 
 /*******************************************************************************
@@ -596,20 +644,23 @@ void atl_core_proc(void)
   switch(entity->state)
   {
     case ATL_STATE_WRITE:
-         ATL_DEBUG("[INFO] WRITE: '%s'\n", item->req);
-         if(item->req) atl_init_struct.atl_write(item->req, strlen(item->req));
+         ATL_DEBUG("[INFO] WRITE: '%s'\n", item->req);     
+         if(item->req)
+         {
+           if(strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_init_struct.atl_write((uint8_t*)item->req +strlen(ATL_CMD_SAVE), strlen(item->req+strlen(ATL_CMD_SAVE)));
+           else                                                            atl_init_struct.atl_write((uint8_t*)item->req, strlen(item->req));
+         }         
          entity->timer = item->meta.wait;
          entity->state = ATL_STATE_READ;
          break;
     case ATL_STATE_READ:
          if(atl_cmd_ring_parcer(entity, item)) 
          {
-           ATL_DEBUG("[INFO] Command successful\n");
+           ATL_DEBUG("[INFO] Command successful\n", NULL);
            if(entity->item_id >= entity->item_cnt -1) //that was the last one
            {
              if(entity->cb) entity->cb(true, entity->ctx, entity->data);
-             if(entity->data) tlsf_free(atl_init_struct.atl_tlsf, entity->data);
-             atl_dequeue();
+             atl_entity_dequeue();
            } 
            else 
            {
@@ -627,12 +678,11 @@ void atl_core_proc(void)
            --item->meta.rpt_cnt;
            if(!item->meta.rpt_cnt) 
            {
-             ATL_DEBUG("[INFO] No rtries left\n");
+             ATL_DEBUG("[INFO] No rtries left\n", NULL);
              if(entity->item_id >= entity->item_cnt -1) //that was the last one
              {
                if(entity->cb) entity->cb(false, entity->ctx, entity->data);
-               if(entity->data) tlsf_free(atl_init_struct.atl_tlsf, entity->data);
-               atl_dequeue();
+               atl_entity_dequeue();
              } 
              else
              {

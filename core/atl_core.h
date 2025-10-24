@@ -18,19 +18,7 @@
 #include <assert.h>
 #include "tlsf.h"
 #include "ringslice.h"
-
-/*******************************************************************************
- * Config
- ******************************************************************************/
-#define ATL_MAX_ITEMS_PER_ENTITY 50
-
-#define ATL_ENTITY_QUEUE_SIZE    10
-
-#define ATL_URC_QUEUE_SIZE       10
-
-#define ATL_MEMORY_POOL_SIZE     2048
- 
-#define ATL_DEBUG_ENABLED        1
+#include "atl_port.h"
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
@@ -44,14 +32,16 @@
 #define ATL_CMD_ERROR            ATL_CMD_CRLF"ERROR"ATL_CMD_CRLF
 
 #define ATL_ITEM_SIZE            sizeof(atl_item_t)
-#define ATL_URC_SIZE             sizeof(atl_urc_t)
+#define ATL_URC_SIZE             sizeof(atl_urc_queue_t)
+
+#define ATL_NULL                 (void*)0xFFFF
 
 #if ATL_DEBUG_ENABLED
-#define ATL_DEBUG(fmt, ...) do { \
-    if (atl_get_init().atl_printf) { \
-        atl_get_init().atl_printf("[ATL][%s:%d]"fmt, __FILE__, __LINE__, ##__VA_ARGS__); \
-    } \
-} while(0)
+  #define ATL_DEBUG(fmt, ...) do { \
+      if (atl_get_init().atl_printf) { \
+          atl_get_init().atl_printf("[ATL][%s:%d]"fmt, __FILE__, __LINE__, ##__VA_ARGS__); \
+      } \
+  } while(0)
 #else
 #define ATL_DEBUG(fmt, ...) ((void)0)
 #endif
@@ -59,25 +49,25 @@
 #define ATL_ITEM(req, prefix, format, retries, timeout, err_step, ok_step, cb, ...) \
 { \
   req, \
-  {prefix, format,(void*[]){__VA_ARGS__, NULL}, cb}, \
-  {retries, timeout, err_step, ok_step} \
+  {prefix, format,(void*[]){__VA_ARGS__, ATL_NULL}, cb}, \
+  {timeout, retries, err_step, ok_step} \
 }
 
 #define ATL_ARG(src, field) ((void*)offsetof(src, field))
 
-#define ATL_CRITICAL_ENTER  atl_critical_enter();
-#define ATL_CRITICAL_EXIT   atl_critical_exit();
+#define ATL_CRITICAL_ENTER  atl_crit_enter();
+#define ATL_CRITICAL_EXIT   atl_crit_exit();
 
 /*******************************************************************************
  * Global type definitions ('typedef')
  ******************************************************************************/
-typedef void (*answ_parce_cb_t)(ringslice_t data_slice, bool result, void* data);
+typedef void (*answ_parce_cb_t)(ringslice_t data_slice, bool result, void* const data);
 typedef void (*atl_urc_cb)(ringslice_t urc_slice);   //urc callback type
 
-typedef struct atl_urc_t{
+typedef struct atl_urc_queue_t{
   char* prefix;  // Char prefix to find the URC
   atl_urc_cb cb; // Callback for this URC
-} atl_urc_t;
+} atl_urc_queue_t;
 
 typedef struct atl_item_t
 {
@@ -99,14 +89,14 @@ typedef struct atl_item_t
 /*******************************************************************************
  * Local type definitions ('typedef')
  ******************************************************************************/
-typedef void (*atl_printf_t)(const char *format, ...);
+typedef int (*atl_printf_t)(const char *format, ...);
 
-typedef uint16_t (*atl_write_t)(uint8_t buff, //buff where data will bi written
+typedef uint16_t (*atl_write_t)(uint8_t* buff, //buff where data will bi written
                                 uint16_t len); //len of data
 
-typedef void (*atl_entity_cb_t)(bool  result, //result
-                                void* ctx,    //passed ctx from @atl_entity_t
-                                void* data);  //data ptr from @atl_entity_t
+typedef void (*atl_entity_cb_t)(const bool result,     //result
+                                void* const ctx, //passed ctx from @atl_entity_t
+                                const void* const);    //data ptr from @atl_entity_t
 
 typedef enum
 {
@@ -119,6 +109,7 @@ typedef struct atl_init_t{
   atl_printf_t atl_printf; //custom printf fucntion
   atl_write_t atl_write;   //custom write function
   tlsf_t atl_tlsf;         //instance for TLSF lib
+  uint16_t tlsf_usage;
   uint8_t* ring;           //rx ring buff
   uint16_t ring_len;       //rx ring buff len
   uint16_t* ring_tail;     //rx ring buff tail
@@ -133,6 +124,7 @@ typedef struct atl_entity_t{
   atl_proc_states_t state;      //state
   atl_entity_cb_t   cb;         //cb for item
   void*             data;       //usefull data from execution
+  uint16_t          data_size;  //usefull data size
   void*             ctx;        //user data context
 } atl_entity_t;
 
@@ -159,8 +151,8 @@ typedef struct atl_entity_queue_t{
  ** @param  ring_head       head of RX ring buffer. 
  ** @return none
  ******************************************************************************/
-void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, const uint8_t* const ring, 
-              const uint16_t ring_len, const uint16_t* const ring_tail, const uint16_t* const ring_head);
+void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, uint8_t* const ring, 
+              const uint16_t ring_len, uint16_t* const ring_tail, uint16_t* const ring_head);
 
 /*******************************************************************************
  ** @brief  DeInit atl lib  
@@ -169,13 +161,6 @@ void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, const 
  ** @return false: some error is ocur true: ok
  ******************************************************************************/
 void atl_deinit(void);
-
-/*******************************************************************************
- ** @brief  Function to get lib init status
- ** @param  none
- ** @return true/false
- ******************************************************************************/
-bool atl_is_init(void);
 
 /*******************************************************************************
  ** @brief  Function to append main queue with new group of at cmds
@@ -188,28 +173,28 @@ bool atl_is_init(void);
  ** @param  ctx          Ptr to some context of execution. Will be called in CB. Can be NULL.
  ** @return true: ok false: error while trying to append
  ******************************************************************************/
-bool atl_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, const void* const ctx);
+bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Clear first entity from the queue 
  ** @param  none
  ** @return false: some errors; true: ok
  ******************************************************************************/
-bool atl_dequeue(void);
+bool atl_entity_dequeue(void);
 
 /*******************************************************************************
  ** @brief  Function to append URC queue
  ** @param  urc  ptr to your URC.
  ** @return ture/false
  ******************************************************************************/
-bool atl_urc_enqueue(const atl_urc_t* const urc);
+bool atl_urc_enqueue(const atl_urc_queue_t* const urc);
 
 /*******************************************************************************
  ** @brief  Function to delete URC from queue
  ** @param  urc  ptr to your URC.
  ** @return ture/false
  ******************************************************************************/
-bool atl_urc_dequeue(const atl_urc_t* const urc);
+bool atl_urc_dequeue(const atl_urc_queue_t* const urc);
 
 /*******************************************************************************
  ** @brief  Function to proc ATL core proccesses. 
@@ -228,29 +213,36 @@ uint16_t atl_get_cur_time(void);
 /*******************************************************************************
  ** @brief  Function get init struct. 
  ** @param  none
- ** @return none
+ ** @return atl_init_t
  ******************************************************************************/
 atl_init_t atl_get_init(void);
 
 /*******************************************************************************
- ** @brief  DBC fault override
+ ** @brief  Function to custom tlsf malloc. 
  ** @param  none
  ** @return none
  ******************************************************************************/
-__attribute__((weak)) DBC_NORETURN void DBC_fault_handler(char const * module, int label);
+void* atl_tlsf_malloc(size_t size);
 
 /*******************************************************************************
- ** @brief  Weak function to enter into critical section
+ ** @brief  Function to custom tlsf free. 
  ** @param  none
  ** @return none
  ******************************************************************************/
-__attribute__((weak)) void atl_crit_enter(void);
+void atl_tlsf_free(void* ptr, size_t size);
 
-/*******************************************************************************
- ** @brief  Weak function to exit critical section
- ** @param  none
- ** @return none
- ******************************************************************************/
-__attribute__((weak)) void atl_crit_exit(void);
+#ifdef ATL_TEST
+int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item);
+void _atl_parcer_process_urcs(const ringslice_t* me);
+void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req); 
+void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data); 
+int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+                          const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
+int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern); 
+int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item); 
+atl_entity_queue_t* _atl_get_entity_queue(void); 
+atl_urc_queue_t* _atl_get_urc_queue(void); 
+#endif
 
 #endif //__ATL_CORE_H
+

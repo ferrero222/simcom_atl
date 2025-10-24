@@ -49,7 +49,7 @@ typedef struct atl_mdl_tcp_server_t {
  ** @return true - proc started, false - smthg is wrong
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to create and config socket. (SINGLE SOCKET)
@@ -59,7 +59,7 @@ bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, const 
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to connect socket.
@@ -70,7 +70,7 @@ bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const para
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to connect socket.
@@ -81,7 +81,7 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to disconnect from socket
@@ -91,7 +91,7 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_disconnect(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_gprs_socket_disconnect(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to deinit gprs
@@ -101,6 +101,6 @@ bool atl_mdl_gprs_socket_disconnect(const atl_entity_cb_t cb, const void* const 
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_deinit(const atl_entity_cb_t cb, const void* const param, const void* const ctx);
+bool atl_mdl_gprs_deinit(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
 #endif //__ATL_MDL_TCP_H

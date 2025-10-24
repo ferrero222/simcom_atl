@@ -1,0 +1,38 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/chain",
+                "${workspaceFolder}/core", 
+                "${workspaceFolder}/libs/tlsf",
+                "${workspaceFolder}/libs/ringslice/src",
+                "${workspaceFolder}/libs/ringslice/src/config",
+                "${workspaceFolder}/libs/embedded-test/et",
+                "${workspaceFolder}/modules/general",
+                "${workspaceFolder}/modules/sms",
+                "${workspaceFolder}/modules/tcp",
+                "${workspaceFolder}/tests"
+            ],
+            "defines": [
+                "ATL_TEST",
+                "TLSF_64BIT=0"
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "${workspaceFolder}/libs",
+                    "${workspaceFolder}/modules"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            }
+        }
+    ],
+    "version": 4
+}
