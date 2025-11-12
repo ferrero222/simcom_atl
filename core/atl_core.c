@@ -19,9 +19,6 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE")
 
-#warning "TODO: Format + arg in one single macros \
-                Ptrs can be without data_size"
-
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
  ******************************************************************************/
@@ -102,7 +99,7 @@ static void atl_parcer_process_urcs(const ringslice_t* me)
   {
     if(atl_urc_queue[i].prefix)
     {
-      ringslice_t rs_urc = ringslice_strstr(me, atl_urc_queue[i].prefix);
+      ringslice_t rs_urc = ringslice_strstr(me, atl_urc_queue[i].prefix, strlen(atl_urc_queue[i].prefix));
       if(!ringslice_is_empty(&rs_urc) && atl_urc_queue[i].cb) 
       {
         ATL_DEBUG("[INFO] Found URC: %s", atl_urc_queue[i].prefix);
@@ -115,18 +112,16 @@ static void atl_parcer_process_urcs(const ringslice_t* me)
 /** 
  * @brief Find request ring slice 
  */
-static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req)
+static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* req)
 {
   DBC_REQUIRE(106, me); 
   DBC_REQUIRE(107, rs_req); 
 
   if(!req) return;
 
-  const uint8_t req_len = strlen(req) - 1; // Request echo returns only CR, so ignore LF
+  if(strncmp(req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) req += strlen(ATL_CMD_SAVE);
 
-  *rs_req = ringslice_strstr(me, req);
-
-  if(!ringslice_is_empty(rs_req)) *rs_req = ringslice_subslice(rs_req, 0, req_len+1);
+  *rs_req = ringslice_strstr(me, req, strlen(req) - 1); //Request echo returns only CR, so ignore LF
 }
 
 /** 
@@ -143,11 +138,8 @@ static void atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_
 
   if(ringslice_is_empty(&tmp)) return;
 
-  *rs_res = ringslice_strstr(&tmp, ATL_CMD_ERROR);
-  if(!ringslice_is_empty(rs_res)) *rs_res = ringslice_subslice(rs_res, 0, strlen(ATL_CMD_ERROR)+1);
-  
-  *rs_res = ringslice_strstr(&tmp, ATL_CMD_OK);
-  if(!ringslice_is_empty(rs_res)) *rs_res = ringslice_subslice(rs_res, 0, strlen(ATL_CMD_OK)+1);
+  *rs_res = ringslice_strstr(&tmp, ATL_CMD_ERROR, strlen(ATL_CMD_ERROR));
+  if(ringslice_is_empty(rs_res)) *rs_res = ringslice_strstr(&tmp, ATL_CMD_OK, strlen(ATL_CMD_ERROR));
 }
 
 /** 
@@ -162,7 +154,7 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
 
   const uint8_t crlf_len = strlen(ATL_CMD_CRLF);
 
-  if(!ringslice_is_empty(rs_req) && ringslice_is_empty(rs_res)) //No request/response, data is the entire buffer \r\nDATA\r\n
+  if(ringslice_is_empty(rs_req) && ringslice_is_empty(rs_res)) //No request/response, data is the entire buffer \r\nDATA\r\n
   { 
     *rs_data = *me;
   } 
@@ -172,9 +164,9 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
   } 
   else if(!ringslice_is_empty(rs_req) && !ringslice_is_empty(rs_res)) //Both request and response present
   {
-    ringslice_t after_req = ringslice_subslice_after(me, rs_req, strlen(ATL_CMD_CRLF"OK"ATL_CMD_CRLF)+1);
+    ringslice_t after_req = ringslice_subslice_after(me, rs_req, strlen(ATL_CMD_CRLF"OK"ATL_CMD_CRLF));
     *rs_data = ringslice_subslice_equals(&after_req, rs_res) 
-               ? ringslice_subslice_after(me, rs_req, 0) // REQ\r\r\nOK\r\n\r\nDATA\r\n
+               ? ringslice_subslice_after(me, rs_res, 0) // REQ\r\r\nOK\r\n\r\nDATA\r\n
                : ringslice_subslice_gap(rs_req, rs_res); // REQ\r\r\nDATA\r\n\r\nOK\r\n
   }
 
@@ -183,11 +175,9 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
     *rs_data = (ringslice_t){0};
     return;
   }
-
-  *rs_data = ringslice_subslice_with_suffix(rs_data, crlf_len, ATL_CMD_CRLF); // Extract clean data (without surrounding CRLF)
+  *rs_data = ringslice_subslice_with_suffix(rs_data, crlf_len, ATL_CMD_CRLF, strlen(ATL_CMD_CRLF)); 
   if(ringslice_is_empty(rs_data)) return;
-  
-  *rs_data = ringslice_subslice(rs_data, 0, ringslice_len(rs_data) - crlf_len);
+  *rs_data = ringslice_subslice(rs_data, crlf_len, ringslice_len(rs_data)-crlf_len); // Extract clean data (without surrounding CRLF)
 }
 
 /** 
@@ -195,6 +185,7 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
  * \note  NULL NULL NULL  - unhandle state
  *        REQ  NULL NULL  - unhandle state
  *        REQ  RES  NULL  - handle state
+ *        REQ  NULL DATA  - handle state
  *        REQ  RES  DATA  - handle state
  *        NULL RES  NULL  - unhandle state
  *        NULL RES  DATA  - unhandle state
@@ -225,7 +216,9 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
            break;
       case 0x7: // 0b111 - REQ RES DATA
            if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) break;
+           else res = 1;
            // Intentional fall-through
+      case 0x5: // 0b101 - REQ NULL DATA
       case 0x1: // 0b001 - NULL NULL DATA
            if(item->answ.prefix) res = atl_string_boolean_ops(rs_data, item->answ.prefix);
            if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
@@ -253,19 +246,19 @@ static int atl_string_boolean_ops(const ringslice_t* const rs_data, const char* 
   const char sep = or_sep ? '|' : (and_sep ? '&' : '\0');
   const int require_all = (sep == '&'); // 1 for AND, 0 for OR
 
-  for(const char* start = pattern; *start;) 
+  for(const char* start = pattern; *start && *start != '\0';) 
   {
     const char* end = strchr(start, sep);
     size_t length = end ? (size_t)(end - start) : strlen(start);
-    int match = (ringslice_strcmp(rs_data, start) == 0);
+    ringslice_t match = ringslice_strstr(rs_data, start, length);
     if(require_all) 
     { 
-      if (!match) return 0; //if only one desmatch ->exit
+      if (ringslice_is_empty(&match)) return 0; //if only one desmatch ->exit
     } else 
     {
-      if (match) return 1; //if only one match ->exit
+      if (!ringslice_is_empty(&match)) return 1; //if only one match ->exit
     }
-    start = end ? end + 1 : start + length;
+    start = end && *end != '\0' ? end + 1 : start + length;
   }
   return require_all ? 1 : 0;
 }
@@ -281,7 +274,7 @@ static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* co
   void **output_ptrs = item->answ.ptrs;
   
   int param_count = 0;
-  while(output_ptrs[param_count] != ATL_NULL) param_count++;
+  while(output_ptrs[param_count] != ATL_NO_ARG) param_count++;
   
   DBC_ASSERT(124, format);
   DBC_ASSERT(125, output_ptrs);
@@ -296,52 +289,6 @@ static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* co
     default: return 0;
   }
 }
-
-#ifdef ATL_TEST
-/** 
- * @brief Test implementations for static
- */
-int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item) { 
-  return atl_cmd_ring_parcer(entity,item);
-}
-
-void _atl_parcer_process_urcs(const ringslice_t* me) { 
-  atl_parcer_process_urcs(me); 
-}
-
-void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req) { 
-  atl_parcer_find_rs_req(me, rs_req, req); 
-}
-
-void _atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res) { 
-  atl_parcer_find_rs_res(me, rs_req, rs_res); 
-}
-
-void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data) { 
-  atl_parcer_find_rs_data(me, rs_req, rs_res, rs_data); 
-}
-
-int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
-                          const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity) { 
-  return atl_parcer_post_proc(me, rs_req, rs_res, rs_data, item, entity); 
-}
-
-int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern) { 
-  return atl_string_boolean_ops(rs_data, pattern); 
-}
-
-int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item) {
-  return atl_cmd_sscanf(rs_data, item);
-}
-
-atl_entity_queue_t* _atl_get_entity_queue(void) {
-  return &atl_entity_queue;
-}
-
-atl_urc_queue_t* _atl_get_urc_queue(void) {
-  return atl_urc_queue;
-}
-#endif
 
 /*******************************************************************************
  ** @brief  Init atl lib  
@@ -440,10 +387,10 @@ bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount,
   for(int i = 0; i < item_amount; i++)
   {
     memcpy(&cur_entity->item[i], &item[i], sizeof(atl_item_t));
-    if(item[i].answ.ptrs && item[i].answ.ptrs[0] != ATL_NULL && data_size)
+    if(item[i].answ.ptrs && item[i].answ.ptrs[0] != ATL_NO_ARG && item[i].answ.format && data_size)
     {
       int ptr_count = 0;
-      while(item[i].answ.ptrs[ptr_count] != ATL_NULL) ptr_count++;
+      while(item[i].answ.ptrs[ptr_count] != ATL_NO_ARG) ptr_count++;
       cur_entity->item[i].answ.ptrs = atl_tlsf_malloc((ptr_count + 1) * sizeof(void*));
       if(!cur_entity->item[i].answ.ptrs) goto error_exit;
       for(int j = 0; j < ptr_count; j++)
@@ -452,9 +399,9 @@ bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount,
         cur_entity->item[i].answ.ptrs[j] = (char*)cur_entity->data + offset;
         ATL_DEBUG("[INFO] Pointer[%d]: original=%p, offset=%zu, new=%p\n", j, item[i].answ.ptrs[j], offset, cur_entity->item[i].answ.ptrs[j]);
       }
-      cur_entity->item[i].answ.ptrs[ptr_count] = NULL;
+      cur_entity->item[i].answ.ptrs[ptr_count] = ATL_NO_ARG;
     }
-    if(strncmp(item[i].req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0)
+    if(item[i].req && strncmp(item[i].req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0)
     {
       char* tmp_req = item[i].req;
       uint8_t* new_mem = atl_tlsf_malloc(strlen(tmp_req) + 1);
@@ -466,6 +413,7 @@ bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount,
   cur_entity->item_cnt = item_amount;
   cur_entity->cb = cb;
   cur_entity->ctx = ctx;
+  cur_entity->state = ATL_STATE_WRITE;
   atl_entity_queue.entity_tail = (atl_entity_queue.entity_tail + 1) % ATL_ENTITY_QUEUE_SIZE;
   ++atl_entity_queue.entity_cnt;
   ATL_DEBUG("[INFO] Entity enqueued successfully. Data at %p\n", cur_entity->data);
@@ -501,10 +449,13 @@ bool atl_entity_dequeue(void)
   while(item_amount)
   {
     atl_item_t* item = &cur_entity->item[cur_entity->item_cnt -item_amount];
-    if(strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_tlsf_free(item->req, strlen(item->req) + 1);
-    uint8_t ptr_count = 0;
-    while(item->answ.ptrs[ptr_count] != ATL_NULL) ptr_count++;
-    if(ptr_count) atl_tlsf_free(item->answ.ptrs, (ptr_count + 1) * sizeof(void*));
+    if(item->req && strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_tlsf_free(item->req, strlen(item->req) + 1);
+    if(item->answ.ptrs && cur_entity->data)
+    {
+      uint8_t ptr_count = 0;
+      while(item->answ.ptrs[ptr_count] != ATL_NO_ARG) ptr_count++;
+      if(ptr_count) atl_tlsf_free(item->answ.ptrs, (ptr_count + 1) * sizeof(void*));
+    }
     cur_entity->item[cur_entity->item_cnt -item_amount].req = NULL;
     --item_amount;
   }
@@ -554,14 +505,14 @@ bool atl_urc_enqueue(const atl_urc_queue_t* const urc)
  ** @param  urc  ptr to your URC.
  ** @return ture/false
  ******************************************************************************/
-bool atl_urc_dequeue(const atl_urc_queue_t* const urc)  
+bool atl_urc_dequeue(char* prefix)  
 {
   ATL_CRITICAL_ENTER
-  DBC_REQUIRE(701, urc);
+  DBC_REQUIRE(701, prefix);
   for(uint8_t i = 0; i <= ATL_URC_QUEUE_SIZE; ++i)
   {
     if(!atl_urc_queue[i].prefix) continue;
-    if(strcmp(atl_urc_queue[i].prefix, urc->prefix) == 0)
+    if(strcmp(atl_urc_queue[i].prefix, prefix) == 0)
     {
       memset(&atl_urc_queue[i], 0, ATL_URC_SIZE);
       ATL_DEBUG("[INFO] URC dequeued successfully", NULL);
@@ -665,8 +616,8 @@ void atl_core_proc(void)
            else 
            {
               if(item->meta.ok_step == 0 ||
-                (item->meta.ok_step > 0 && entity->item_id + item->meta.ok_step >= entity->item_cnt - 1) ||
-                (item->meta.ok_step < 0 && item->meta.ok_step > entity->item_id)) 
+                (item->meta.ok_step > 0 && entity->item_id + item->meta.ok_step < entity->item_cnt) ||
+                (item->meta.ok_step < 0 && entity->item_id + item->meta.ok_step >= 0)) 
               {
                 entity->item_id++;
               }
@@ -687,8 +638,8 @@ void atl_core_proc(void)
              else
              {
                if(item->meta.err_step == 0 ||
-                 (item->meta.err_step > 0 && entity->item_id + item->meta.err_step >= entity->item_cnt - 1) ||
-                 (item->meta.err_step < 0 && item->meta.err_step > entity->item_id)) 
+                 (item->meta.err_step > 0 && entity->item_id + item->meta.err_step < entity->item_cnt) ||
+                 (item->meta.err_step < 0 && entity->item_id + item->meta.err_step >= 0)) 
                {
                  entity->item_id++;
                }
@@ -705,3 +656,59 @@ void atl_core_proc(void)
   ATL_CRITICAL_EXIT
 }
 
+#ifdef ATL_TEST
+/*******************************************************************************
+ ** @brief  TEST implementations
+ ** @param  none
+ ** @return none
+ ******************************************************************************/
+void _atl_core_proc(void) { 
+  atl_core_proc();
+}
+
+int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item) { 
+  return atl_cmd_ring_parcer(entity,item);
+}
+
+void _atl_parcer_process_urcs(const ringslice_t* me) { 
+  atl_parcer_process_urcs(me); 
+}
+
+void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req) { 
+  atl_parcer_find_rs_req(me, rs_req, req); 
+}
+
+void _atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res) { 
+  atl_parcer_find_rs_res(me, rs_req, rs_res); 
+}
+
+void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data) { 
+  atl_parcer_find_rs_data(me, rs_req, rs_res, rs_data); 
+}
+
+int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+                          const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity) { 
+  return atl_parcer_post_proc(me, rs_req, rs_res, rs_data, item, entity); 
+}
+
+int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern) { 
+  return atl_string_boolean_ops(rs_data, pattern); 
+}
+
+int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item) {
+  return atl_cmd_sscanf(rs_data, item);
+}
+
+atl_entity_queue_t* _atl_get_entity_queue(void) {
+  return &atl_entity_queue;
+}
+
+atl_urc_queue_t* _atl_get_urc_queue(void) {
+  return atl_urc_queue;
+}
+
+atl_init_t _atl_get_init(void) {
+  return atl_get_init();
+}
+
+#endif

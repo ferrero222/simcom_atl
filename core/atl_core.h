@@ -24,9 +24,9 @@
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
 #define ATL_CMD_SAVE             "SAVE:"
-#define ATL_CMD_CRLF             "\x0d\x0a"
-#define ATL_CMD_CR               '\x0d'
-#define ATL_CMD_LF               '\x0a'
+#define ATL_CMD_CRLF             "\r\n"
+#define ATL_CMD_CR               "\r"
+#define ATL_CMD_LF               "\n"
 #define ATL_CMD_CTRL_Z           "\x1a"
 #define ATL_CMD_OK               ATL_CMD_CRLF"OK"ATL_CMD_CRLF
 #define ATL_CMD_ERROR            ATL_CMD_CRLF"ERROR"ATL_CMD_CRLF
@@ -34,26 +34,35 @@
 #define ATL_ITEM_SIZE            sizeof(atl_item_t)
 #define ATL_URC_SIZE             sizeof(atl_urc_queue_t)
 
-#define ATL_NULL                 (void*)0xFFFF
-
 #if ATL_DEBUG_ENABLED
   #define ATL_DEBUG(fmt, ...) do { \
       if (atl_get_init().atl_printf) { \
-          atl_get_init().atl_printf("[ATL][%s:%d]"fmt, __FILE__, __LINE__, ##__VA_ARGS__); \
+          atl_get_init().atl_printf("[ATL][%s:%d]"fmt, __FILE_NAME__, __LINE__, __VA_ARGS__); \
       } \
   } while(0)
 #else
 #define ATL_DEBUG(fmt, ...) ((void)0)
 #endif
 
-#define ATL_ITEM(req, prefix, format, retries, timeout, err_step, ok_step, cb, ...) \
+#define ATL_ITEM(req_, prefix_, retries_, timeout_, err_step_, ok_step_, cb_, format_, ...) \
 { \
-  req, \
-  {prefix, format,(void*[]){__VA_ARGS__, ATL_NULL}, cb}, \
-  {timeout, retries, err_step, ok_step} \
+    .req = req_, \
+    .answ = { \
+        .prefix = prefix_, \
+        .format = format_, \
+        .ptrs = (void*[]){__VA_ARGS__, ATL_NO_ARG}, \
+        .cb = cb_ \
+    }, \
+    .meta = { \
+        .wait = timeout_, \
+        .rpt_cnt = retries_, \
+        .err_step = err_step_, \
+        .ok_step = ok_step_ \
+    } \
 }
 
 #define ATL_ARG(src, field) ((void*)offsetof(src, field))
+#define ATL_NO_ARG          (void*)0xFFFF
 
 #define ATL_CRITICAL_ENTER  atl_crit_enter();
 #define ATL_CRITICAL_EXIT   atl_crit_exit();
@@ -96,7 +105,7 @@ typedef uint16_t (*atl_write_t)(uint8_t* buff, //buff where data will bi written
 
 typedef void (*atl_entity_cb_t)(const bool result,     //result
                                 void* const ctx, //passed ctx from @atl_entity_t
-                                const void* const);    //data ptr from @atl_entity_t
+                                const void* const data);    //data ptr from @atl_entity_t
 
 typedef enum
 {
@@ -194,7 +203,7 @@ bool atl_urc_enqueue(const atl_urc_queue_t* const urc);
  ** @param  urc  ptr to your URC.
  ** @return ture/false
  ******************************************************************************/
-bool atl_urc_dequeue(const atl_urc_queue_t* const urc);
+bool atl_urc_dequeue(char* prefix);
 
 /*******************************************************************************
  ** @brief  Function to proc ATL core proccesses. 
@@ -232,9 +241,11 @@ void* atl_tlsf_malloc(size_t size);
 void atl_tlsf_free(void* ptr, size_t size);
 
 #ifdef ATL_TEST
+void _atl_core_proc(void);
 int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item);
 void _atl_parcer_process_urcs(const ringslice_t* me);
 void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req); 
+void _atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
 void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data); 
 int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
                           const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
@@ -242,6 +253,7 @@ int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const 
 int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item); 
 atl_entity_queue_t* _atl_get_entity_queue(void); 
 atl_urc_queue_t* _atl_get_urc_queue(void); 
+atl_init_t _atl_get_init(void);
 #endif
 
 #endif //__ATL_CORE_H

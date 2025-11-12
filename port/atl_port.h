@@ -21,16 +21,16 @@
 /*******************************************************************************
  * Config
  ******************************************************************************/
-#define ATL_MAX_ITEMS_PER_ENTITY 50
+#define ATL_MAX_ITEMS_PER_ENTITY 50     //Max amount of AT cmds in one group
 
-#define ATL_ENTITY_QUEUE_SIZE    10
+#define ATL_ENTITY_QUEUE_SIZE    10     //Max amount of groups 
 
-#define ATL_URC_QUEUE_SIZE       10
+#define ATL_URC_QUEUE_SIZE       10     //Amount of handled URC
 
-#define ATL_MEMORY_POOL_SIZE     4096
+#define ATL_MEMORY_POOL_SIZE     4096   //Memory pool for TLSF heap
  
 #ifndef ATL_TEST
-  #define ATL_DEBUG_ENABLED      1
+  #define ATL_DEBUG_ENABLED      1      //Recommend to turn on DEBUG logs
 #endif
 
 /*******************************************************************************

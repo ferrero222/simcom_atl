@@ -132,10 +132,10 @@ endif
 
 BIN_DIR := build
 
-CFLAGS  := -c -g -O -fno-pie -std=c11 -pedantic -Wall -Wextra -W \
+CFLAGS  := -c -g -O0 -fno-pie -std=c11 -pedantic -Wall -Wextra -W \
 	$(INCLUDES) $(DEFINES) -DQ_HOST
 
-CPPFLAGS := -c -g -O -fno-pie -std=c++11 -pedantic -Wall -Wextra \
+CPPFLAGS := -c -g -O0 -fno-pie -std=c++11 -pedantic -Wall -Wextra \
 	-fno-rtti -fno-exceptions \
 	$(INCLUDES) $(DEFINES) -DQ_HOST
 
