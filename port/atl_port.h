@@ -29,9 +29,9 @@
 
 #define ATL_MEMORY_POOL_SIZE     4096   //Memory pool for TLSF heap
  
-#ifndef ATL_TEST
+//#ifndef ATL_TEST
   #define ATL_DEBUG_ENABLED      1      //Recommend to turn on DEBUG logs
-#endif
+//#endif
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')

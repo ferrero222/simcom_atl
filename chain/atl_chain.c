@@ -302,7 +302,7 @@ static bool atl_chain_process_step(atl_chain_t* const chain)
         if(loop_start->action.loop_count == 0 || current_loop->iteration_count < loop_start->action.loop_count) // 0 = infinite loop, otherwise check iteration count
         {
           chain->current_step = current_loop->start_step_index;
-          ATL_DEBUG("[INFO] Loop iteration %u", chain->loop_counter);
+          ATL_DEBUG("[INFO] Loop iteration %u", current_loop->iteration_count);
         } 
         else 
         {
@@ -310,7 +310,7 @@ static bool atl_chain_process_step(atl_chain_t* const chain)
           loop_start->state = ATL_CHAIN_STEP_IDLE;
           current_loop->iteration_count = 0;
           chain->current_step++;
-          ATL_DEBUG("[INFO] Loop completed after %u iterations\n", chain->loop_counter);
+          ATL_DEBUG("[INFO] Loop completed after %u iterations\n", current_loop->iteration_count);
         }
       }
       else 
@@ -396,7 +396,7 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
 
   memset(chain->loop_stack, 0, chain->loop_stack_size * sizeof(atl_loop_stack_item_t));
 
-  ATL_DEBUG("[INFO] Created chain '%s' with %u steps, loop stack: %u\n", name, step_count, required_stack_size);
+  ATL_DEBUG("[INFO] Created chain '%s' with %u steps, loop stack: %u, memory used: %d/%d.\n", name, step_count, required_stack_size, atl_get_init().tlsf_usage, ATL_MEMORY_POOL_SIZE);
   return chain;
 }
 
@@ -413,7 +413,7 @@ void atl_chain_destroy(atl_chain_t* const chain)
   if(chain->steps) atl_tlsf_free(chain->steps, chain->step_count *sizeof(chain_step_t));
   if(chain->loop_stack) atl_tlsf_free(chain->loop_stack, chain->loop_stack_size * sizeof(atl_loop_stack_item_t));
   atl_tlsf_free(chain, sizeof(atl_chain_t));
-  ATL_DEBUG("[INFO] Chain destroyed\n", NULL);
+  ATL_DEBUG("[INFO] Chain destroyed, memory used: %d/%d", NULL, atl_get_init().tlsf_usage, ATL_MEMORY_POOL_SIZE);
 }
 
 /*******************************************************************************
@@ -426,7 +426,7 @@ bool atl_chain_start(atl_chain_t* const chain)
   DBC_REQUIRE(801, chain);
   atl_chain_reset_state(chain);
   chain->is_running = true;
-  ATL_DEBUG("[INFO]  Chain '%s' started\n", chain->name);
+  ATL_DEBUG("[INFO] Chain '%s' started\n", chain->name);
   return true;
 }
 

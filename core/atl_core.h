@@ -37,7 +37,7 @@
 #if ATL_DEBUG_ENABLED
   #define ATL_DEBUG(fmt, ...) do { \
       if (atl_get_init().atl_printf) { \
-          atl_get_init().atl_printf("[ATL][%s:%d]"fmt, __FILE_NAME__, __LINE__, __VA_ARGS__); \
+          atl_get_init().atl_printf("[ATL][%-10.*s:%4d]"fmt, 10, __FILE_NAME__, __LINE__, __VA_ARGS__); \
       } \
   } while(0)
 #else
