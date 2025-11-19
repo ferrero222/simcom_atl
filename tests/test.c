@@ -3,16 +3,24 @@
 //============================================================================
 #include "et.h"  // ET: embedded test
 
-#include "atl_core.h" // Code Under Test (CUT)
-#include "tlsf.h" // Code Under Test (CUT)
-#include "atl_port.h" // Code Under Test (CUT)
+#include "atl_core.h" // 
+#include "o1heap.h" // 
+#include "atl_port.h" // 
 #include "atl_chain.h"  // ET: embedded test
 #include "atl_mdl_general.h"
 #include <stdio.h>
 
 uint8_t test_buffer[2048] = {0};
-uint16_t test_buffer_head = 0;
-uint16_t test_buffer_tail = 1024;
+const uint16_t test_buffer_head = 1024;
+const uint16_t test_buffer_tail = 0;
+
+atl_ring_buffer_t atl_ring_buffer = {
+  .buffer = test_buffer,
+  .count = 0,
+  .head = test_buffer_head,
+  .tail = test_buffer_tail,
+  .size = 2048,
+};
 
 uint16_t test_write(uint8_t* buff, uint16_t len) {
   (void)buff;
@@ -20,6 +28,9 @@ uint16_t test_write(uint8_t* buff, uint16_t len) {
   return 1;
 }
 
+void test_printf(const char* string) {
+  return;
+}
 
 void setup(void) {
     // executed before *every* non-skipped test
@@ -77,29 +88,28 @@ bool testChainCond(void)
 TEST_GROUP("ATL") {
 
   { //ATL_CORE=====================================================================
-    TEST("tlsf lib") {
-      // printf("..%d, %d, %d, %d, %d, %d..", 
-      //        (int)tlsf_size(), (int)tlsf_align_size(), (int)tlsf_block_size_min(), 
-      //        (int)tlsf_block_size_max(), (int)tlsf_pool_overhead(), (int)tlsf_alloc_overhead());
-      tlsf_t tlsf = tlsf_create_with_pool(test_buffer, ATL_MEMORY_POOL_SIZE); 
-      void* ptr1 = tlsf_malloc(tlsf, 111);
-      void* ptr2 = tlsf_malloc(tlsf, 345);
-      tlsf_free(tlsf, ptr1);
-      tlsf_free(tlsf, ptr2);
-      VERIFY(tlsf_check(tlsf) == 0);
-      tlsf_destroy(tlsf);
+    TEST("o1heap lib") {
+      O1HeapInstance* heap = o1heapInit(test_buffer, ATL_MEMORY_POOL_SIZE); 
+      bool res = o1heapDoInvariantsHold(heap);
+      VERIFY(res);
+      void* ptr1 = o1heapAllocate(heap, 111);
+      VERIFY(ptr1);
+      void* ptr2 = o1heapAllocate(heap, 345);
+      VERIFY(ptr2);
+      o1heapFree(heap, ptr1);
+      o1heapFree(heap, ptr2);
+      VERIFY(o1heapGetDiagnostics(heap).allocated == 0);
     }
 
     TEST("atl_init()/atl_deinit() testing") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);
       VERIFY(_atl_get_init().init);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_entity_enqueue()/atl_entity_dequeue() simple AT`s") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
@@ -118,14 +128,12 @@ TEST_GROUP("ATL") {
       VERIFY(queue->entity_cnt == 1);
       atl_entity_dequeue();
       VERIFY(queue->entity_cnt == 0);
-      VERIFY(tlsf_check(_atl_get_init().atl_tlsf) == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_entity_enqueue()/atl_entity_dequeue() composite AT`s") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM(ATL_CMD_SAVE"AT+GSN"ATL_CMD_CRLF,    NULL, 2, 150, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -156,14 +164,12 @@ TEST_GROUP("ATL") {
       VERIFY(queue->entity_cnt == 1);
       atl_entity_dequeue();
       VERIFY(queue->entity_cnt == 0);
-      VERIFY(tlsf_check(_atl_get_init().atl_tlsf) == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_urc_enqueue()/atl_urc_dequeue()") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);
       atl_urc_queue_t urc = {"+SMS", NULL};
       atl_urc_enqueue(&urc);
       atl_urc_queue_t* urc_queue = _atl_get_urc_queue();  
@@ -176,12 +182,11 @@ TEST_GROUP("ATL") {
       VERIFY(atl_urc_dequeue("+CMD"));
       VERIFY(urc_queue[1].prefix == NULL);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_cmd_sscanf()") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);
       char test[128] = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
@@ -195,13 +200,11 @@ TEST_GROUP("ATL") {
       VERIFY(res_d);
       VERIFY(strncmp((atl_mdl_rtd_t*){queue->entity[0].data}->modem_imei, test, 15) == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_string_boolean_ops()") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
-      char test[] = "+GSN1234+TRASH+END";
+      atl_init(test_printf, test_write, &atl_ring_buffer);      char test[] = "+GSN1234+TRASH+END";
       ringslice_t data = ringslice_initializer((uint8_t*)test, sizeof(test), 0, strlen(test));
       int res_d = _atl_string_boolean_ops(&data, "+GSN1234");
       VERIFY(res_d);
@@ -214,12 +217,11 @@ TEST_GROUP("ATL") {
       res_d = _atl_string_boolean_ops(&data, "+GSN1234&EMPTY");
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(),  NULL NULL NULL  - unhandle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -234,12 +236,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), REQ NULL NULL  - unhandle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -255,13 +256,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), REQ RES NULL(expect) - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
-      atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+      atl_init(test_printf, test_write, &atl_ring_buffer);      atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
       };
@@ -278,12 +277,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), REQ RES NULL(no expect) - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
@@ -301,12 +299,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), REQ NULL DATA - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -315,7 +312,8 @@ TEST_GROUP("ATL") {
       VERIFY(res);
       char rs_req_impl[128]  = "AT+TEST?";
       char rs_me_impl[128]   = "EMPTY";
-      ringslice_t rs_data = {0};
+      char rs_data_impl[128] = "+TEST: 523566, text";
+      ringslice_t rs_data = ringslice_initializer((uint8_t*)rs_data_impl, 128, 0, strlen(rs_data_impl));
       ringslice_t rs_req  = ringslice_initializer((uint8_t*)rs_req_impl, 128, 0, strlen(rs_req_impl));
       ringslice_t rs_res  = {0};
       ringslice_t rs_me   = ringslice_initializer((uint8_t*)rs_me_impl, 128, 0, strlen(rs_me_impl));
@@ -323,12 +321,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), REQ RES(OK) DATA - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -348,12 +345,11 @@ TEST_GROUP("ATL") {
       VERIFY(res_d);
       VERIFY(strcmp((atl_mdl_rtd_t*){queue->entity[0].data}->modem_imei, "5235") == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), REQ RES(ERROR) DATA  - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -372,12 +368,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), NULL RES NULL  - unhandle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -393,12 +388,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), NULL RES DATA  - unhandle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -415,15 +409,14 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), NULL NULL DATA(expect)  - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
-        ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
+        ATL_ITEM(NULL, "+TEST", 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
       };
       bool res = atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), NULL, sizeof(atl_mdl_rtd_t), NULL);
       VERIFY(res);
@@ -437,12 +430,11 @@ TEST_GROUP("ATL") {
       VERIFY(res_d);
       VERIFY(strcmp((atl_mdl_rtd_t*){queue->entity[0].data}->modem_imei, "5235") == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_post_proc(), NULL NULL DATA(no expect)  - handle state") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
@@ -458,12 +450,11 @@ TEST_GROUP("ATL") {
       int res_d = _atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, &queue->entity[0].item[0], &queue->entity[0]);
       VERIFY(res_d <= 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_find_rs_data() RES before DATA") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -479,12 +470,11 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_data) != 1);
       VERIFY(ringslice_strncmp(&rs_data, "+TEST: 523566", strlen("+TEST: 523566")) == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_find_rs_data() RES after DATA") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -502,12 +492,11 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_data) != 1);
       VERIFY(ringslice_strncmp(&rs_data, "+TEST: 523566", strlen("+TEST: 523566")) == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_find_rs_data() no RES and REQ") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -523,12 +512,11 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_data) != 1);
       VERIFY(ringslice_strncmp(&rs_data, "+TEST: 523566", strlen("+TEST: 523566")) == 0);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_find_rs_data() no RES") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -544,12 +532,11 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_data) != 1);
       VERIFY(ringslice_strncmp(&rs_data, "+TEST: 523566", strlen("+TEST: 523566")) == 0);   
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_parcer_find_rs_res() OK") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -564,12 +551,11 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_res) != 1);
       VERIFY(ringslice_strcmp(&rs_res, "\r\nOK\r\n") == 0);   
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_parcer_find_rs_res() ERROR") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -584,12 +570,11 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_res) != 1);
       VERIFY(ringslice_strcmp(&rs_res, "\r\nERROR\r\n") == 0);   
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_parcer_find_rs_req()") {
-      atl_init(printf, test_write, test_buffer, 2048, &test_buffer_tail, &test_buffer_head);
+      atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -603,16 +588,23 @@ TEST_GROUP("ATL") {
       VERIFY(ringslice_is_empty(&rs_req) != 1);
       VERIFY(ringslice_strcmp(&rs_req, "AT+TEST?\r") == 0);   
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_cmd_ring_parcer() format RES after data") {
       char parce_buffer[2048] = "FFFFAT+TEST?\r\r\n+TEST: 523566, text\r\n\r\nOK\r\nFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, "+TEST", 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -623,16 +615,23 @@ TEST_GROUP("ATL") {
       int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
       VERIFY(res_p);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_cmd_ring_parcer() format RES before data") {
       char parce_buffer[2048] = "FFFFAT+TEST?\r\r\nOK\r\n\r\n+TEST: 523566, text\r\nFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, "+TEST", 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -643,16 +642,22 @@ TEST_GROUP("ATL") {
       int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
       VERIFY(res_p);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_cmd_ring_parcer() format RES before data without prefix check") {
       char parce_buffer[2048] = "FFFFAT+TEST?\r\r\nOK\r\n\r\n+TEST: 523566, text\r\nFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -663,16 +668,22 @@ TEST_GROUP("ATL") {
       int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
       VERIFY(res_p);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_cmd_ring_parcer() no format no prefix, just sending and wait echo with OK") {
       char parce_buffer[2048] = "FFFFAT+TEST?\r\r\nOK\r\n\r\n+TEST: 523566, text\r\nFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
@@ -683,16 +694,22 @@ TEST_GROUP("ATL") {
       int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
       VERIFY(res_p);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_cmd_ring_parcer() full check without RES") {
       char parce_buffer[2048] = "FFFFAT+TEST?\r\r\n+TEST: 523566, text\r\nFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);;
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, "+TEST", 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -703,36 +720,22 @@ TEST_GROUP("ATL") {
       int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
       VERIFY(res_p);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_cmd_ring_parcer() full check without RES and REQ") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
-      atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
-      {
-        ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, "+TEST", 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
       };
-      bool res = atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), NULL, sizeof(atl_mdl_rtd_t), test_buffer);
-      VERIFY(res);
-      atl_entity_queue_t* queue =_atl_get_entity_queue();
-      int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
-      VERIFY(res_p);
-      atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
-      VERIFY(!_atl_get_init().init);
-    }
-
-  TEST("atl_cmd_ring_parcer() no Item Req, only answer") {
-      char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
-
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM(NULL, "+TEST", 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
@@ -743,31 +746,69 @@ TEST_GROUP("ATL") {
       int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
       VERIFY(res_p);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
+      VERIFY(!_atl_get_init().init);
+    }
+
+  TEST("atl_cmd_ring_parcer() no Item Req, only answer") {
+      char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
+
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
+      atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+      {
+        ATL_ITEM(NULL, "+TEST", 2, 150, 0, 1, testItemCB,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
+      };
+      bool res = atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), NULL, sizeof(atl_mdl_rtd_t), test_buffer);
+      VERIFY(res);
+      atl_entity_queue_t* queue =_atl_get_entity_queue();
+      int res_p = _atl_cmd_ring_parcer(&queue->entity[0], &queue->entity->item[0]);
+      VERIFY(res_p);
+      atl_deinit();
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_parcer_process_urcs()") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
       atl_urc_queue_t urc = {"+TEST", testUrcCB};
       atl_urc_enqueue(&urc);
       ringslice_t rs_me   = ringslice_initializer((uint8_t*)parce_buffer, 2048, 0, strlen(parce_buffer));
       _atl_parcer_process_urcs(&rs_me);
       atl_deinit();
-      VERIFY(_atl_get_init().tlsf_usage == 0);
       VERIFY(!_atl_get_init().init);
     }
 
   TEST("atl_core_proc() first cmd fail, second success") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
         ATL_ITEM(ATL_CMD_SAVE"AT+GSN"ATL_CMD_CRLF, NULL, 2, 150, 1, 1, NULL, NULL, ATL_NO_ARG),
@@ -780,7 +821,6 @@ TEST_GROUP("ATL") {
       {
         _atl_core_proc();
       }
-      VERIFY(_atl_get_init().tlsf_usage == tlsf_size());
       atl_deinit();
       VERIFY(!_atl_get_init().init);
     }
@@ -789,10 +829,17 @@ TEST_GROUP("ATL") {
   { //ATL_CHAIN====================================================================
     TEST("atl_chain_create() simple straight chain") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
 
       chain_step_t server_steps[] = 
       {   
@@ -814,17 +861,23 @@ TEST_GROUP("ATL") {
         if(atl_chain_is_running(chain)) VERIFY(res);
       }
       atl_chain_destroy(chain);
-      VERIFY(_atl_get_init().tlsf_usage == tlsf_size());
       atl_deinit();
       VERIFY(!_atl_get_init().init);
     }
 
     TEST("atl_chain_create() one loop") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
 
       chain_step_t server_steps[] = 
       {   
@@ -853,17 +906,23 @@ TEST_GROUP("ATL") {
         if(atl_chain_is_running(chain)) VERIFY(res);
       }
       atl_chain_destroy(chain);
-      VERIFY(_atl_get_init().tlsf_usage == tlsf_size());
       atl_deinit();
       VERIFY(!atl_get_init().init);
     }
 
     TEST("atl_chain_create() nested loops with delay, condition and prev") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
-      uint16_t parce_buffer_head = 0;
-      uint16_t parce_buffer_tail = strlen(parce_buffer);
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
 
-      atl_init(printf, test_write, (uint8_t*)parce_buffer, 2048, &parce_buffer_tail, &parce_buffer_head);
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
 
       chain_step_t server_steps[] = 
       {   
@@ -901,7 +960,6 @@ TEST_GROUP("ATL") {
         if(atl_chain_is_running(chain)) VERIFY(res);
       }
       atl_chain_destroy(chain);
-      VERIFY(_atl_get_init().tlsf_usage == tlsf_size());
       atl_deinit();
       VERIFY(!atl_get_init().init);
     }

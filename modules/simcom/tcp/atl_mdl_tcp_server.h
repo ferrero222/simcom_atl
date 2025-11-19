@@ -1,10 +1,10 @@
 /*******************************************************************************
- *               ╔══╗╔══╗╔╗──╔╗╔══╗╔══╗╔╗──╔╗───╔══╗╔════╗╔╗──   (c)03.10.2025 *
- *               ║╔═╝╚╗╔╝║║──║║║╔═╝║╔╗║║║──║║───║╔╗║╚═╗╔═╝║║──       v1.0.0    *
- *               ║╚═╗─║║─║╚╗╔╝║║║──║║║║║╚╗╔╝║───║╚╝║──║║──║║──                 *
- *               ╚═╗║─║║─║╔╗╔╗║║║──║║║║║╔╗╔╗║───║╔╗║──║║──║║──                 *
- *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
- *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
+ *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
+ *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
+ *                           ║╚╝║──║║──║║──                                    *
+ *                           ║╔╗║──║║──║║──                                    *
+ *                           ║║║║──║║──║╚═╗                                    *
+ *                           ╚╝╚╝──╚╝──╚══╝                                    *  
  ******************************************************************************/
 #ifndef __ATL_MDL_TCP_SERVER_H
 #define __ATL_MDL_TCP_SERVER_H
@@ -25,12 +25,12 @@
 typedef void (*atl_stream_data_cb)(uint8_t* data, uint16_t len);
 
 typedef struct {
-    uint8_t* buffer;           // Accumulation buffer
-    uint16_t buffer_size;      // Total buffer size
-    uint16_t data_len;         // Current data length in buffer
-    int16_t expected_len;      // Expected payload length (-1 if unknown)
-    uint16_t header_len;       // Parsed header length
-    bool packet_in_progress;   // Packet parsing in progress flag
+  uint8_t* buffer;           // Accumulation buffer
+  uint16_t buffer_size;      // Total buffer size
+  uint16_t data_len;         // Current data length in buffer
+  int16_t expected_len;      // Expected payload length (-1 if unknown)
+  uint16_t header_len;       // Parsed header length
+  bool packet_in_progress;   // Packet parsing in progress flag
 } atl_tcp_stream_ctx_t;
 
 /*******************************************************************************

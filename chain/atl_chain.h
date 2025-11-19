@@ -1,10 +1,10 @@
 /*******************************************************************************
- *               ╔══╗╔══╗╔╗──╔╗╔══╗╔══╗╔╗──╔╗───╔══╗╔════╗╔╗──   (c)03.10.2025 *
- *               ║╔═╝╚╗╔╝║║──║║║╔═╝║╔╗║║║──║║───║╔╗║╚═╗╔═╝║║──       v1.0.0    *
- *               ║╚═╗─║║─║╚╗╔╝║║║──║║║║║╚╗╔╝║───║╚╝║──║║──║║──                 *
- *               ╚═╗║─║║─║╔╗╔╗║║║──║║║║║╔╗╔╗║───║╔╗║──║║──║║──                 *
- *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
- *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
+ *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
+ *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
+ *                           ║╚╝║──║║──║║──                                    *
+ *                           ║╔╗║──║║──║║──                                    *
+ *                           ║║║║──║║──║╚═╗                                    *
+ *                           ╚╝╚╝──╚╝──╚══╝                                    *  
  ******************************************************************************/
 #ifndef ATL_CHAIN_H
 #define ATL_CHAIN_H
@@ -108,20 +108,22 @@
 /*******************************************************************************
  * Global type definitions ('typedef')
  ******************************************************************************/    
-typedef enum {        
+typedef uint8_t atl_step_exec_state_t;
+enum {        
   ATL_CHAIN_STEP_IDLE,       // Step is not executing
   ATL_CHAIN_STEP_RUNNING,    // Function started, waiting for callback
   ATL_CHAIN_STEP_SUCCESS,    // Step completed successfully
   ATL_CHAIN_STEP_ERROR,      // Step completed with error
-} atl_step_exec_state_t;
+};
 
-typedef enum {              
+typedef uint8_t atl_chain_step_type_t;
+enum {              
   ATL_CHAIN_STEP_FUNCTION,   // Function call with transitions
   ATL_CHAIN_STEP_CONDITION,  // Conditional jump
   ATL_CHAIN_STEP_LOOP_START, // Loop start
   ATL_CHAIN_STEP_LOOP_END,   // Loop end
   ATL_CHAIN_STEP_DELAY,      // Delay
-} atl_chain_step_type_t;
+};
 
 typedef struct {
   uint32_t start_step_index;    // index of LOOP_START step
@@ -129,8 +131,6 @@ typedef struct {
 } atl_loop_stack_item_t;
 
 typedef struct {
-  atl_chain_step_type_t type; // Step type
-  const char *name;           // Step name for identification
   union
   {
     struct {
@@ -140,7 +140,7 @@ typedef struct {
       void* ctx;                   // Context for function executing
       const char *success_target;  // Target step on success
       const char *error_target;    // Target step on error
-      uint32_t max_retries;        // Maximum retry attempts
+      uint8_t max_retries;         // Maximum retry attempts
     } func;   
     struct {   
       bool (*condition)(void);     // Condition check function
@@ -151,20 +151,22 @@ typedef struct {
       uint32_t start;              // Start moment
       uint32_t value;              // Delay in milliseconds
     } delay;    
-    uint32_t loop_count;           // Loop iterations (0 = infinite)
-  } action;                 
+    uint8_t loop_count;            // Loop iterations (0 = infinite)
+  } action;      
+  const char *name;                // Step name for identification
+  atl_chain_step_type_t type;      // Step type           
   atl_step_exec_state_t state;     // Current execution state
-  uint32_t execution_count;        // Number of execution attempts
+  uint8_t execution_count;         // Number of execution attempts
   bool was_executed_successfully;  // Flag if step ever succeeded
 } chain_step_t;
 
 typedef struct atl_chain_t {
   const char *name;                   // Chain name
-  chain_step_t *steps;                // Array of steps (heap allocated)
-  uint32_t step_count;                // Number of steps
-  uint32_t current_step;              // Current step index
+  chain_step_t *steps;                // Array of steps 
   uint32_t loop_stack_ptr;            // Loop stack pointer
-  uint32_t loop_stack_size;           // Maximum loop stack size
+  uint8_t step_count;                 // Number of steps
+  uint8_t current_step;               // Current step index
+  uint16_t loop_stack_size;           // Maximum loop stack size
   atl_loop_stack_item_t* loop_stack;  // Loop stack for nested loops
   bool is_running;                    // Chain execution flag
 } atl_chain_t;
@@ -179,7 +181,7 @@ typedef struct atl_chain_t {
  * Global function prototypes (definition in C source)
  ******************************************************************************/
 /*******************************************************************************
- ** @brief Create a new chain with copied steps (heap allocated)
+ ** @brief Create a new chain with copied steps
  ** @param name       Chain name
  ** @param steps      Array of steps (will be copied)
  ** @param step_count Number of steps
@@ -243,12 +245,5 @@ uint32_t atl_chain_get_current_step(const atl_chain_t* const chain);
  ** @return Current step name or NULL if not available
  *******************************************************************************/
 const char* atl_chain_get_current_step_name(const atl_chain_t* const chain);
-
-/*******************************************************************************
- ** @brief Print chain execution statistics
- ** @param chain Chain to print stats for
- ** @retval none
- *******************************************************************************/
-void atl_chain_print_stats(const atl_chain_t* const chain);
 
 #endif // ATL_CHAIN_H

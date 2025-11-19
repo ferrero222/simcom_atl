@@ -1,10 +1,10 @@
 /*******************************************************************************
- *               ╔══╗╔══╗╔╗──╔╗╔══╗╔══╗╔╗──╔╗───╔══╗╔════╗╔╗──   (c)03.10.2025 *
- *               ║╔═╝╚╗╔╝║║──║║║╔═╝║╔╗║║║──║║───║╔╗║╚═╗╔═╝║║──       v1.0.0    *
- *               ║╚═╗─║║─║╚╗╔╝║║║──║║║║║╚╗╔╝║───║╚╝║──║║──║║──                 *
- *               ╚═╗║─║║─║╔╗╔╗║║║──║║║║║╔╗╔╗║───║╔╗║──║║──║║──                 *
- *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
- *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
+ *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
+ *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
+ *                           ║╚╝║──║║──║║──                                    *
+ *                           ║╔╗║──║║──║║──                                    *
+ *                           ║║║║──║║──║╚═╗                                    *
+ *                           ╚╝╚╝──╚╝──╚══╝                                    *  
  ******************************************************************************/
 /*******************************************************************************
  * Include files
@@ -38,25 +38,6 @@ DBC_MODULE_NAME("ATL_MDL_TCP_SERVER")
 /*******************************************************************************
  * Function implementation - global ('extern') and local ('static')
  ******************************************************************************/
-/*
-  chain_step_t server_steps[] = 
-  {    
-    ATL_CHAIN("MODEM INIT",     "GPRS INIT",      "MODEM RESET", atl_mdl_modem_init,          NULL, NULL, 3),
-    ATL_CHAIN("GPRS INIT",      "SOCKET CONFIG",  "MODEM RESET", atl_mdl_gprs_init,           NULL, NULL, 3),
-    ATL_CHAIN("SOCKET CONFIG",  "SOCKET CONNECT", "GPRS DEINIT", atl_mdl_gprs_socket_config,  NULL, NULL, 3),
-    ATL_CHAIN("SOCKET CONNECT", "MODEM RTD",      "GPRS DEINIT", atl_mdl_gprs_socket_connect, NULL, NULL, 3),
-
-    ATL_CHAIN_LOOP_START(0), 
-    ATL_CHAIN("MODEM RTD",          "SOCKET SEND RECIVE", "SOCKET DISCONNECT", atl_mdl_rtd, NULL, NULL, 3),
-    ATL_CHAIN("SOCKET SEND RECIVE", "MODEM RTD",          "SOCKET DISCONNECT", atl_mdl_gprs_socket_send_recieve, NULL, NULL, 3),
-    ATL_CHAIN_LOOP_END,
-
-    ATL_CHAIN("SOCKET DISCONNECT", "SOCKET CONFIG", "MODEM RESET", atl_mdl_gprs_socket_disconnect, NULL, NULL, 3),
-    ATL_CHAIN("GPRS DEINIT",       "GPRS INIT",     "MODEM RESET", atl_mdl_gprs_deinit, NULL, NULL, 3),
-    ATL_CHAIN("MODEM RESET",       "GPRS INIT",     "MODEM RESET", atl_mdl_modem_reset, NULL, NULL, 3),
-  };
-*/
-
 /*******************************************************************************
  ** @brief  Find IPD header in buffer
  ** @param  data         Buffer to search
@@ -105,7 +86,7 @@ static void process_complete_packet(atl_tcp_stream_ctx_t* ctx, atl_stream_data_c
 {
   uint8_t* payload = ctx->buffer + ctx->header_len;
   uint16_t total_packet_len = ctx->header_len + ctx->expected_len;
-  ATL_DEBUG("[INFO] Found full TCP stream packet, len: %d", ctx->expected_len);
+  ATL_DEBUG("[ATL][INFO] Found full TCP stream packet, len: %d", ctx->expected_len);
   if(cb) cb(payload, ctx->expected_len);
   // Remove processed packet from buffer
   ctx->data_len -= total_packet_len;
@@ -125,11 +106,11 @@ static void process_complete_packet(atl_tcp_stream_ctx_t* ctx, atl_stream_data_c
 bool atl_tcp_stream_ctx_init(atl_tcp_stream_ctx_t* ctx, uint16_t packet_size)
 {
   DBC_REQUIRE(101, atl_get_init().init);
-  ctx->buffer = (uint8_t*)atl_tlsf_malloc(packet_size);
+  ctx->buffer = (uint8_t*)atl_malloc(packet_size);
   if (!ctx->buffer) 
   {
-      ATL_DEBUG("[ERROR] Failed to allocate stream buffer", NULL);
-      return false;
+    ATL_DEBUG("[ATL][ERROR] Failed to allocate stream buffer", NULL);
+    return false;
   }
   ctx->buffer_size = packet_size;
   ctx->data_len = 0;
@@ -147,7 +128,7 @@ void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx)
 {
   if (ctx && ctx->buffer) 
   {
-    atl_tlsf_free(ctx->buffer, ctx->buffer_size);
+    atl_free(ctx->buffer);
     ctx->buffer = NULL;
     ctx->buffer_size = 0;
     ctx->data_len = 0;
@@ -171,7 +152,7 @@ bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* 
   // Check if new data fits in buffer
   if (ctx->data_len + len > ctx->buffer_size) 
   {
-    ATL_DEBUG("[INFO] Stream buffer overflow, resetting", NULL);
+    ATL_DEBUG("[ATL][INFO] Stream buffer overflow, resetting", NULL);
     ctx->data_len = 0;
     ctx->expected_len = -1;
     ctx->header_len = 0;
@@ -215,7 +196,7 @@ bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* 
         // Invalid header, skip 4 bytes ("+IPD") and continue
         memmove(ctx->buffer, ctx->buffer + 4, ctx->data_len - 4);
         ctx->data_len -= 4;
-        ATL_DEBUG("[INFO] Invalid stream header, skipping", NULL);
+        ATL_DEBUG("[ATL][INFO] Invalid stream header, skipping", NULL);
         continue;
       }
       
@@ -230,7 +211,7 @@ bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* 
     else 
     {
       // Incomplete packet, wait for more data
-      ATL_DEBUG("[INFO] Waiting for full stream data", NULL);
+      ATL_DEBUG("[ATL][INFO] Waiting for full stream data", NULL);
       break;
     }
   }

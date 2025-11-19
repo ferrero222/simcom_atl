@@ -8,6 +8,6 @@
 	path = libs/ringslice
 	url = https://github.com/ferrero222/ringslice.git
 	branch = dev
-[submodule "libs/tlsf"]
-	path = libs/tlsf
-	url = https://github.com/mattconte/tlsf.git
+[submodule "libs/o1heap"]
+	path = libs/o1heap
+	url = https://github.com/pavel-kirienko/o1heap.git

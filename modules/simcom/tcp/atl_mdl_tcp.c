@@ -1,10 +1,10 @@
 /*******************************************************************************
- *               ╔══╗╔══╗╔╗──╔╗╔══╗╔══╗╔╗──╔╗───╔══╗╔════╗╔╗──   (c)03.10.2025 *
- *               ║╔═╝╚╗╔╝║║──║║║╔═╝║╔╗║║║──║║───║╔╗║╚═╗╔═╝║║──       v1.0.0    *
- *               ║╚═╗─║║─║╚╗╔╝║║║──║║║║║╚╗╔╝║───║╚╝║──║║──║║──                 *
- *               ╚═╗║─║║─║╔╗╔╗║║║──║║║║║╔╗╔╗║───║╔╗║──║║──║║──                 *
- *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
- *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
+ *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
+ *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
+ *                           ║╚╝║──║║──║║──                                    *
+ *                           ║╔╗║──║║──║║──                                    *
+ *                           ║║║║──║║──║╚═╗                                    *
+ *                           ╚╝╚╝──╚╝──╚══╝                                    *  
  ******************************************************************************/
 /*******************************************************************************
  * Include files
@@ -134,10 +134,9 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
   atl_mdl_tcp_server_t* tcp = (atl_mdl_tcp_server_t*)param;
   size_t size = strlen(ATL_CMD_SAVE) + strlen(tcp->data) + strlen(ATL_CMD_CTRL_Z) +1; 
   char cipsend[64] = {0}; 
-  char* datacmd = (char*)atl_tlsf_malloc(size);
+  char* datacmd = (char*)atl_malloc(size);
   if(!datacmd) 
   {
-    ATL_DEBUG("[ERROR] Failed to allocate memory\n", NULL); 
     atl_deinit(); 
     return false; 
   } 
@@ -149,7 +148,7 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
     ATL_ITEM(cipsend,                                    ">", 2, 250,  0, 1, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM(datacmd,                         "+IPD&SEND OK", 2, 250,  0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  atl_tlsf_free(datacmd, size);
+  atl_free(datacmd);
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
 }

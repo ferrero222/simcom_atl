@@ -6,18 +6,17 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/chain",
                 "${workspaceFolder}/core", 
-                "${workspaceFolder}/libs/tlsf",
+                "${workspaceFolder}/libs/o1heap/o1heap",
                 "${workspaceFolder}/libs/ringslice/src",
                 "${workspaceFolder}/libs/ringslice/src/config",
                 "${workspaceFolder}/libs/embedded-test/et",
-                "${workspaceFolder}/modules/general",
-                "${workspaceFolder}/modules/sms",
-                "${workspaceFolder}/modules/tcp",
+                "${workspaceFolder}/modules/simcom/general",
+                "${workspaceFolder}/modules/simcom/sms",
+                "${workspaceFolder}/modules/simcom/tcp",
                 "${workspaceFolder}/tests"
             ],
             "defines": [
                 "ATL_TEST",
-                "TLSF_64BIT=0"
             ],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c11",

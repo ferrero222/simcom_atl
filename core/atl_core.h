@@ -1,10 +1,10 @@
 /*******************************************************************************
- *               ╔══╗╔══╗╔╗──╔╗╔══╗╔══╗╔╗──╔╗───╔══╗╔════╗╔╗──   (c)03.10.2025 *
- *               ║╔═╝╚╗╔╝║║──║║║╔═╝║╔╗║║║──║║───║╔╗║╚═╗╔═╝║║──       v1.0.0    *
- *               ║╚═╗─║║─║╚╗╔╝║║║──║║║║║╚╗╔╝║───║╚╝║──║║──║║──                 *
- *               ╚═╗║─║║─║╔╗╔╗║║║──║║║║║╔╗╔╗║───║╔╗║──║║──║║──                 *
- *               ╔═╝║╔╝╚╗║║╚╝║║║╚═╗║╚╝║║║╚╝║║───║║║║──║║──║╚═╗                 *
- *               ╚══╝╚══╝╚╝──╚╝╚══╝╚══╝╚╝──╚╝───╚╝╚╝──╚╝──╚══╝                 *  
+ *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
+ *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
+ *                           ║╚╝║──║║──║║──                                    *
+ *                           ║╔╗║──║║──║║──                                    *
+ *                           ║║║║──║║──║╚═╗                                    *
+ *                           ╚╝╚╝──╚╝──╚══╝                                    *  
  ******************************************************************************/
 #ifndef __ATL_CORE_H
 #define __ATL_CORE_H
@@ -16,7 +16,7 @@
 #include <stdbool.h> 
 #include <string.h>
 #include <assert.h>
-#include "tlsf.h"
+#include "o1heap.h"
 #include "ringslice.h"
 #include "atl_port.h"
 
@@ -34,38 +34,30 @@
 #define ATL_ITEM_SIZE            sizeof(atl_item_t)
 #define ATL_URC_SIZE             sizeof(atl_urc_queue_t)
 
-#if ATL_DEBUG_ENABLED
-  #define ATL_DEBUG(fmt, ...) do { \
-      if (atl_get_init().atl_printf) { \
-          atl_get_init().atl_printf("[ATL][%-10.*s:%4d]"fmt, 10, __FILE_NAME__, __LINE__, __VA_ARGS__); \
-      } \
-  } while(0)
-#else
-#define ATL_DEBUG(fmt, ...) ((void)0)
-#endif
-
 #define ATL_ITEM(req_, prefix_, retries_, timeout_, err_step_, ok_step_, cb_, format_, ...) \
 { \
-    .req = req_, \
-    .answ = { \
-        .prefix = prefix_, \
-        .format = format_, \
-        .ptrs = (void*[]){__VA_ARGS__, ATL_NO_ARG}, \
-        .cb = cb_ \
-    }, \
-    .meta = { \
-        .wait = timeout_, \
-        .rpt_cnt = retries_, \
-        .err_step = err_step_, \
-        .ok_step = ok_step_ \
-    } \
+  .req = req_, \
+  .answ = \
+  { \
+    .prefix = prefix_, \
+    .format = format_, \
+    .ptrs = (void*[]){__VA_ARGS__, ATL_NO_ARG}, \
+    .cb = cb_ \
+  }, \
+  .meta = \
+  { \
+    .wait = timeout_, \
+    .rpt_cnt = retries_, \
+    .err_step = err_step_, \
+    .ok_step = ok_step_ \
+  } \
 }
 
 #define ATL_ARG(src, field) ((void*)offsetof(src, field))
-#define ATL_NO_ARG          (void*)0xFFFF
+#define ATL_NO_ARG           (void*)0xFFFF
 
-#define ATL_CRITICAL_ENTER  atl_crit_enter();
-#define ATL_CRITICAL_EXIT   atl_crit_exit();
+#define ATL_CRITICAL_ENTER  _atl_crit_enter();
+#define ATL_CRITICAL_EXIT   _atl_crit_exit();
 
 /*******************************************************************************
  * Global type definitions ('typedef')
@@ -82,59 +74,64 @@ typedef struct atl_item_t
 {
   char* req;  //Sended request, could be string or literal
   struct{
-    char *prefix;   //Prefix to find in answer
-    char *format;   //format for parcing answer
-    void **ptrs;          //VA ARGS for format
-    answ_parce_cb_t cb;   //Callback by the end
+    char *prefix;        //Prefix to find in answer
+    char *format;        //format for parcing answer
+    void **ptrs;         //VA ARGS for format, ptr to ptr array
+    answ_parce_cb_t cb;  //Callback by the end
   } answ;
   struct {
-    uint16_t wait     : 12;  // wait time (0-4095) in ATL_FREQUENCY
-    uint8_t  rpt_cnt  : 4;   // repeat counter (up to 15)
-    int8_t   err_step : 6;   // error step (-31 to 31)  
-    int8_t   ok_step  : 6;   // success step (-31 to 31)
+    uint16_t wait;    // wait time (up to 65535) in 10ms
+    uint8_t rpt_cnt;  // repeat counter (up to 255)
+    int8_t err_step;  // error step (-127 to 127)  
+    int8_t ok_step;   // success step (-127 to 127)
   } meta;
 } atl_item_t;
 
 /*******************************************************************************
  * Local type definitions ('typedef')
  ******************************************************************************/
-typedef int (*atl_printf_t)(const char *format, ...);
+typedef void (*atl_printf_t)(const char *string);
 
-typedef uint16_t (*atl_write_t)(uint8_t* buff, //buff where data will bi written
+typedef uint16_t (*atl_write_t)(uint8_t* buff, //buff where data will be written
                                 uint16_t len); //len of data
 
-typedef void (*atl_entity_cb_t)(const bool result,     //result
-                                void* const ctx, //passed ctx from @atl_entity_t
-                                const void* const data);    //data ptr from @atl_entity_t
+typedef void (*atl_entity_cb_t)(const bool result,       //result
+                                void* const ctx,         //passed ctx from @atl_entity_t
+                                const void* const data); //data ptr from @atl_entity_t
 
-typedef enum
+typedef uint8_t atl_proc_states_t;
+enum
 {
   ATL_STATE_READ = 1,
   ATL_STATE_WRITE,
-} atl_proc_states_t;
+};
+
+typedef struct {
+  uint8_t *buffer;      
+  uint16_t size;   
+  uint16_t head;       
+  uint16_t tail;       
+  uint16_t count;     
+} atl_ring_buffer_t;
 
 typedef struct atl_init_t{
-  bool init;               //init flag
-  atl_printf_t atl_printf; //custom printf fucntion
-  atl_write_t atl_write;   //custom write function
-  tlsf_t atl_tlsf;         //instance for TLSF lib
-  uint16_t tlsf_usage;
-  uint8_t* ring;           //rx ring buff
-  uint16_t ring_len;       //rx ring buff len
-  uint16_t* ring_tail;     //rx ring buff tail
-  uint16_t* ring_head;     //rx ring buff head
-} atl_init_t;
+  atl_printf_t atl_printf;    //custom printf fucntion
+  atl_write_t atl_write;      //custom write function
+  O1HeapInstance* heap;       //instance for custom heap
+  atl_ring_buffer_t* rx_buff; //rx ring buffer 
+  bool init;                  //init flag
+} atl_init_t; 
 
 typedef struct atl_entity_t{
   atl_item_t*       item;       //list of items
   uint8_t           item_cnt;   //amount of items
   uint8_t           item_id;    //current id of executionable items
   uint16_t          timer;      //timer
-  atl_proc_states_t state;      //state
   atl_entity_cb_t   cb;         //cb for item
   void*             data;       //usefull data from execution
-  uint16_t          data_size;  //usefull data size
   void*             ctx;        //user data context
+  uint16_t          data_size;  //usefull data size
+  atl_proc_states_t state;      //state
 } atl_entity_t;
 
 typedef struct atl_entity_queue_t{
@@ -154,14 +151,10 @@ typedef struct atl_entity_queue_t{
  ** @brief  Init atl lib  
  ** @param  atl_printf pointer to user func of printf
  ** @param  atl_write  pointer to user func of write to uart
- ** @param  ring            ptr to RX ring buffer
- ** @param  ring_len        lenght of RX ring buffer. 
- ** @param  ring_tail       tail of RX ring buffer. 
- ** @param  ring_head       head of RX ring buffer. 
+ ** @param  rx_buff    ptr to RX ring buffer
  ** @return none
  ******************************************************************************/
-void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, uint8_t* const ring, 
-              const uint16_t ring_len, uint16_t* const ring_tail, uint16_t* const ring_head);
+void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, atl_ring_buffer_t* rx_buff);
 
 /*******************************************************************************
  ** @brief  DeInit atl lib  
@@ -227,18 +220,18 @@ uint16_t atl_get_cur_time(void);
 atl_init_t atl_get_init(void);
 
 /*******************************************************************************
- ** @brief  Function to custom tlsf malloc. 
+ ** @brief  Function to custom malloc. 
  ** @param  none
  ** @return none
  ******************************************************************************/
-void* atl_tlsf_malloc(size_t size);
+void* atl_malloc(size_t size);
 
 /*******************************************************************************
- ** @brief  Function to custom tlsf free. 
+ ** @brief  Function to custom free. 
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_tlsf_free(void* ptr, size_t size);
+void atl_free(void* ptr);
 
 #ifdef ATL_TEST
 void _atl_core_proc(void);

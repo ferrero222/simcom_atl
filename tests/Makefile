@@ -42,25 +42,25 @@ ET_DIR  := ../libs/embedded-test/et
 
 # list of all source directories used by this project
 VPATH := . \
-	../libs/tlsf \
+	../libs/o1heap/o1heap \
 	../chain \
 	../port \
 	../core \
-	../modules/general \
-	../modules/sms \
-	../modules/tcp \
+	../modules/simcom/general \
+	../modules/simcom/sms \
+	../modules/simcom/tcp \
 	../libs/ringslice/src \
 	$(ET_DIR)
 
 # list of all include directories needed by this project
 INCLUDES := -I. \
-	-I../libs/tlsf \
+	-I../libs/o1heap/o1heap \
 	-I../chain \
 	-I../core \
 	-I../port \
-	-I../modules/general \
-	-I../modules/sms \
-	-I../modules/tcp \
+	-I../modules/simcom/general \
+	-I../modules/simcom/sms \
+	-I../modules/simcom/tcp \
 	-I../libs/ringslice/src \
 	-I../libs/ringslice/src/config \
 	-I$(ET_DIR)
@@ -71,7 +71,7 @@ INCLUDES := -I. \
 
 # C source files...
 C_SRCS := \
-	tlsf.c \
+	o1heap.c \
 	atl_chain.c \
 	atl_core.c \
 	atl_mdl_general.c \
@@ -92,7 +92,7 @@ LIB_DIRS :=
 LIBS     :=
 
 # defines...
-DEFINES  := -DATL_TEST -UTLSF_64BIT
+DEFINES  := -DATL_TEST
 
 #============================================================================
 # Typically you should not need to change anything below this line
@@ -133,6 +133,7 @@ endif
 BIN_DIR := build
 
 CFLAGS  := -c -g -O0 -fno-pie -std=c11 -pedantic -Wall -Wextra -W \
+        -m32 \
 	$(INCLUDES) $(DEFINES) -DQ_HOST
 
 CPPFLAGS := -c -g -O0 -fno-pie -std=c++11 -pedantic -Wall -Wextra \
@@ -140,7 +141,7 @@ CPPFLAGS := -c -g -O0 -fno-pie -std=c++11 -pedantic -Wall -Wextra \
 	$(INCLUDES) $(DEFINES) -DQ_HOST
 
 ifndef GCC_OLD
-	LINKFLAGS := -no-pie
+	LINKFLAGS := -no-pie -m32
 endif
 
 ifdef GCOV
