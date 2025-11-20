@@ -107,22 +107,22 @@ void timer_10ms_handler(void) {
 ```c
 atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
 {
-  ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0", 1, 150, 0, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0", 1, 150, 0, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, 2, 500, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START", 1, 250, 0, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", 1, 250, 0, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, 4, 800, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", 1, 250, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,                    NULL, 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1", 1, 150, 0, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1", 1, 150, 0, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1", 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT",  3, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,                 "FORCE", 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1",  3, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
 };
 atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx);
 ```
@@ -200,6 +200,7 @@ void (*atl_entity_cb_t)(bool result, void* ctx, void* data);
 - В поле [PREFIX] можно указывать более сложные конструкции для проверки сразу нескольких строк и префиксов:
   - Используйте `|` для операций ИЛИ: `"+CREG: 0,1|+CREG: 0,5"`
   - Используйте `&` для операций И: `"+IPD&SEND OK"`
+- Также в поле [PREFIX] можно указать макрос-литерал `ATL_CMD_FORCE` который будет указывать что данная команда или данные должна/ы быть просто отправлена/ы, без парсинга и ожидания ответа. Остальные поля кроме [STEPOK] не будут никак использованы и их содержимое может быть любым.
 - Можно не указывать запрос в команде но передать ожидание для создания искусственной задержки между командами, или просто распарсить и отформатировать данные в буфере.
 - В папке modules и в папке tests содержатся некоторые файлы и реализации уже готовых групп ат команд.
 - В папке tests есть make файл который запускает тесты на ваше машине для проверки логики вне зависимсоти от микроконтроллера. Вы можете запустить его через консоль или отладить через VS code, попробовать добавить свои или посмотреть как происходит процесс выполнения готовых тестов, чтобы понять как что работает.
@@ -300,7 +301,7 @@ chain_step_t server_steps[] =
     ATL_CHAIN_COND("CHECK CONN", "NEXT", "MODEM RESET", atl_check_cond),
     ATL_CHAIN("SOCKET DISCONNECT", "NEXT", "PREV", atl_mdl_gprs_socket_disconnect, entity_cb, param, ctx, 3),
     ATL_CHAIN("GPRS DEINIT",  "NEXT", "MODEM RESET", atl_mdl_gprs_deinit, entity_cb, param, ctx, 3),
-    ATL_CHAIN("MODEM RESET",  "NEXT", "MODEM RESET", atl_mdl_modem_reset, entity_cb, param, ctx, 3),
+    ATL_CHAIN("MODEM RESET",  "NEXT", "STOP", atl_mdl_modem_reset, entity_cb, param, ctx, 3),
 };
 
 atl_chain_t* chain = atl_chain_create("TCP", server_steps, sizeof(server_steps)/sizeof(chain_step_t));
@@ -320,7 +321,7 @@ while(atl_chain_is_running(chain))
 
 **ATL_CHAIN** - основной макрос для добавления шага выполнения, содержит:
 - **[Name]** - Имя шага.
-- **[Success target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага.
+- **[Success target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага. "STOP" закончит выполнение цепочки.
 - **[Error target]** - тоже самое что и при успехе только в случае ошибки. 
 - **[Func]** - та самая функция которая будет вызвана для исполнения шага. 
 - **[Cb]** - Коллбек на шаг 
@@ -330,7 +331,7 @@ while(atl_chain_is_running(chain))
 
 **ATL_CHAIN_COND** - макрос для создания и проверки условия, содержит:
 - **[Name]** - Имя шага.
-- **[True target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага.
+- **[True target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага. "STOP" закончит выполнение цепочки.
 - **[False target]** - тоже самое что и при успехе только в случае ошибки.
 - **[Cond func]** - функция для проверки условия. Должна быть типа bool (*condition)(void);
 

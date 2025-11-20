@@ -138,6 +138,10 @@ static bool atl_chain_validate_loop_jump(const atl_chain_t* const chain, const u
  *******************************************************************************/
 static bool atl_chain_execute_step_jump(atl_chain_t* const chain, const char* const target_name) 
 {
+  if(!target_name || strcmp(target_name, "STOP") == 0) 
+  {
+    return false;
+  }
   if(!target_name || strcmp(target_name, "NEXT") == 0) 
   {
     chain->current_step++;

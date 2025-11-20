@@ -24,6 +24,7 @@
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
 #define ATL_CMD_SAVE             "SAVE:"
+#define ATL_CMD_FORCE            "FORCE"
 #define ATL_CMD_CRLF             "\r\n"
 #define ATL_CMD_CR               "\r"
 #define ATL_CMD_LF               "\n"

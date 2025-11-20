@@ -70,9 +70,19 @@ static int atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_
   ringslice_t rs_res = {0}; 
   ringslice_t rs_data = {0};
   
+  if(item->answ.prefix && strncmp(item->answ.prefix, ATL_CMD_FORCE, strlen(ATL_CMD_FORCE)) == 0) 
+  {
+    ATL_CRITICAL_ENTER
+    atl_init_struct.rx_buff->tail = atl_init_struct.rx_buff->head;
+    atl_init_struct.rx_buff->count = 0;
+    ATL_CRITICAL_EXIT
+    return 1;
+  }
+
   ATL_CRITICAL_ENTER
   rs_me = ringslice_initializer(atl_init_struct.rx_buff->buffer, atl_init_struct.rx_buff->size, atl_init_struct.rx_buff->tail, atl_init_struct.rx_buff->head);
   ATL_CRITICAL_EXIT
+
   if(ringslice_is_empty(&rs_me)) return 0;
    
   atl_parcer_process_urcs(&rs_me); // Process URCs first
@@ -83,13 +93,10 @@ static int atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_
 
   res = atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, item, entity); // Proc data
 
-  if(res > 0)  //debug
-  { 
-    int data_len = ringslice_len(&rs_me);
-    int wrap_len = (rs_me.first + data_len > rs_me.buf_size) ? rs_me.first + data_len - rs_me.buf_size : 0;
-    int first_len = data_len - wrap_len;
-    ATL_DEBUG("[ATL][INFO] [RX] %.*s%.*s", first_len, &rs_me.buf[rs_me.first], wrap_len, &rs_me.buf[0]);
-  }
+  #ifndef ATL_TEST
+  if(res > 0) atl_printf_from_ring(rs_me, "[RX]");
+  #endif
+
   return res;
 }
 
@@ -644,6 +651,16 @@ static void atl_proc_handle_cmd_result(atl_entity_t* const entity, atl_item_t* c
   }  
   //Step outside of cmd range or last cmd or step == 0
   ATL_DEBUG("[ATL][INFO] End of entity", NULL);
+  #ifndef ATL_TEST
+  if(!success) //debug
+  {
+    uint16_t data_start = atl_init_struct.rx_buff->head < 250
+                          ? atl_init_struct.rx_buff->size - (250 - atl_init_struct.rx_buff->head)
+                          : atl_init_struct.rx_buff->head - 250;
+    ringslice_t rs_me = ringslice_initializer(atl_init_struct.rx_buff->buffer, atl_init_struct.rx_buff->size, data_start, atl_init_struct.rx_buff->head);
+    atl_printf_from_ring(rs_me, "Failed last 250 bytes of data: ");
+  }
+  #endif
   if(entity->cb) entity->cb(success, entity->ctx, entity->data);
   atl_entity_dequeue();
 }

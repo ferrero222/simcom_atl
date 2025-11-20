@@ -15,7 +15,7 @@
 #ifndef ATL_TEST
   #include "stdarg.h"
   #include <stdio.h>
- // #include "hc32f460_utility.h"
+  #include "hc32f460_utility.h"
 #endif
 
 /*******************************************************************************
@@ -68,7 +68,7 @@ static void atl_crit_enter(void)
  ******************************************************************************/
 static void atl_crit_exit(void)  
 {
-//  __enable_irq();
+ // __enable_irq();
 }
 
 /*******************************************************************************
@@ -150,6 +150,20 @@ void atl_printf_safe(const char *fmt, ...)
   }
   va_end(args);
 }
+
+/*******************************************************************************
+ ** @brief  Printf
+ ** @param  none
+ ** @return none
+ ******************************************************************************/
+void atl_printf_from_ring(ringslice_t rs_me, char* text)
+{
+  int data_len = ringslice_len(&rs_me);
+  int wrap_len = (rs_me.first + data_len > rs_me.buf_size) ? rs_me.first + data_len - rs_me.buf_size : 0;
+  int first_len = data_len - wrap_len;
+  ATL_DEBUG("[ATL][INFO] %s %.*s%.*s", text, first_len, &rs_me.buf[rs_me.first], wrap_len, &rs_me.buf[0]);
+}
+
 #endif
 
 /*******************************************************************************
