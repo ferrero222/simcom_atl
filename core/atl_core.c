@@ -588,7 +588,7 @@ atl_init_t atl_get_init(void)
  ** @param  none
  ** @return none
  ******************************************************************************/
-uint16_t atl_get_cur_time(void)
+uint32_t atl_get_cur_time(void)
 {
   ATL_CRITICAL_ENTER
   uint32_t res = atl_time;
@@ -669,13 +669,13 @@ static void atl_proc_handle_cmd_result(atl_entity_t* const entity, atl_item_t* c
 void atl_core_proc(void)
 {
   ATL_CRITICAL_ENTER
+  if(atl_time >= UINT32_MAX) atl_time = 0;
+  else atl_time += 1;
   if(!atl_entity_queue.entity_cnt)
   {
     ATL_CRITICAL_EXIT
     return;
   }
-  if(atl_time >= UINT32_MAX) atl_time = 0;
-  else atl_time += 1;
   atl_entity_t* entity = &atl_entity_queue.entity[atl_entity_queue.entity_tail];
   ATL_CRITICAL_EXIT //we work with exclusive memory field for this entity bcs of ring buffer
   atl_item_t* item = &entity->item[entity->item_id];

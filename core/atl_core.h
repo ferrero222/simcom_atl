@@ -211,7 +211,7 @@ void atl_core_proc(void);
  ** @param  none
  ** @return none
  ******************************************************************************/
-uint16_t atl_get_cur_time(void);
+uint32_t atl_get_cur_time(void);
 
 /*******************************************************************************
  ** @brief  Function get init struct. 

@@ -319,7 +319,7 @@ static bool atl_chain_process_step(atl_chain_t* const chain)
       }
       else 
       {
-        ATL_DEBUG("[ERROR] Loop end without start!", NULL);
+        ATL_DEBUG("[ATL][ERROR] Loop end without start!", NULL);
         chain->is_running = false;
         return false;
       }
@@ -328,9 +328,15 @@ static bool atl_chain_process_step(atl_chain_t* const chain)
           
     case ATL_CHAIN_STEP_DELAY: 
     {
-      ATL_DEBUG("[ATL][INFO] Delay %u ms", step->action.delay.value - (atl_get_cur_time() -step->action.delay.start));
-      if(!step->action.delay.start) step->action.delay.start = atl_get_cur_time();
-      if(step->action.delay.start +atl_get_cur_time() >= step->action.delay.value) 
+      #ifndef ATL_TEST
+      if(!step->action.delay.start) 
+      {
+        ATL_DEBUG("[ATL][INFO] Chain step delay %d ms", step->action.delay.value);
+        ATL_DEBUG("[ATL][INFO] Wait....", NULL);
+        step->action.delay.start = atl_get_cur_time();
+      }
+      if(atl_get_cur_time() >= (step->action.delay.start + step->action.delay.value)) 
+      #endif
       {
         step->state = ATL_CHAIN_STEP_IDLE;
         step->action.delay.start = 0;
