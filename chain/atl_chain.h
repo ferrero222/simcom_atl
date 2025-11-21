@@ -41,26 +41,24 @@
   .action.func.max_retries = retries_, \
   .state = ATL_CHAIN_STEP_IDLE, \
   .execution_count = 0, \
-  .was_executed_successfully = false, \
 }
 
 /**
- * @brief Create conditional step
+ * @brief Create exec step
  * @param name Step name
- * @param true_target Target step name when condition is true
- * @param false_target Target step name when condition is false
- * @param cond_func Condition check function
+ * @param true_target Target step name when exec is true
+ * @param false_target Target step name when exec is false
+ * @param exec_func exec function
  */
-#define ATL_CHAIN_COND(name_, true_target_, false_target_, cond_func_) \
+#define ATL_CHAIN_EXEC(name_, true_target_, false_target_, exec_func_) \
 { \
-  .type = ATL_CHAIN_STEP_CONDITION, \
+  .type = ATL_CHAIN_STEP_EXEC, \
   .name = name_, \
-  .action.cond.condition = cond_func_, \
-  .action.cond.true_target = true_target_, \
-  .action.cond.false_target = false_target_, \
+  .action.exec.function = exec_func_, \
+  .action.exec.true_target = true_target_, \
+  .action.exec.false_target = false_target_, \
   .state = ATL_CHAIN_STEP_IDLE, \
   .execution_count = 0, \
-  .was_executed_successfully = false, \
 }
 
 /**
@@ -74,7 +72,6 @@
   .action.loop_count = iterations_, \
   .state = ATL_CHAIN_STEP_IDLE, \
   .execution_count = 0, \
-  .was_executed_successfully = false, \
 }
 
 /**
@@ -87,7 +84,6 @@
   .action.loop_count = 0, \
   .state = ATL_CHAIN_STEP_IDLE, \
   .execution_count = 0, \
-  .was_executed_successfully = false, \
 }
 
 /**
@@ -102,7 +98,6 @@
   .action.delay.value = ms_, \
   .state = ATL_CHAIN_STEP_IDLE, \
   .execution_count = 0, \
-  .was_executed_successfully = false, \
 }
 
 /*******************************************************************************
@@ -119,7 +114,7 @@ enum {
 typedef uint8_t atl_chain_step_type_t;
 enum {              
   ATL_CHAIN_STEP_FUNCTION,   // Function call with transitions
-  ATL_CHAIN_STEP_CONDITION,  // Conditional jump
+  ATL_CHAIN_STEP_EXEC,       // Exec jump
   ATL_CHAIN_STEP_LOOP_START, // Loop start
   ATL_CHAIN_STEP_LOOP_END,   // Loop end
   ATL_CHAIN_STEP_DELAY,      // Delay
@@ -143,10 +138,10 @@ typedef struct {
       uint8_t max_retries;         // Maximum retry attempts
     } func;   
     struct {   
-      bool (*condition)(void);     // Condition check function
+      bool (*function)(void);      // exec function
       const char *true_target;     // Target step when true
       const char *false_target;    // Target step when false
-    } cond;
+    } exec;
     struct {   
       uint32_t start;              // Start moment
       uint32_t value;              // Delay in milliseconds
@@ -157,7 +152,6 @@ typedef struct {
   atl_chain_step_type_t type;      // Step type           
   atl_step_exec_state_t state;     // Current execution state
   uint8_t execution_count;         // Number of execution attempts
-  bool was_executed_successfully;  // Flag if step ever succeeded
 } chain_step_t;
 
 typedef struct atl_chain_t {

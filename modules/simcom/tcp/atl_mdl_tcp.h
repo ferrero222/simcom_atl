@@ -31,8 +31,12 @@ typedef struct atl_mdl_tcp_server_t {
   char mode[4]; 
   char ip[256]; 
   char port[6]; 
-  char* data; //ptr to your data to send (string)
 } atl_mdl_tcp_server_t;
+
+typedef struct atl_mdl_tcp_data_t {
+  char* data; 
+  char* answ;
+} atl_mdl_tcp_data_t;
 
 /*******************************************************************************
  * Local variable definitions ('static')

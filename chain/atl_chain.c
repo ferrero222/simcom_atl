@@ -26,6 +26,12 @@ DBC_MODULE_NAME("ATL_CHAIN")
 /*******************************************************************************
  * Local function prototypes ('static')
  ******************************************************************************/
+static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const step);
+static bool atl_chain_step_exec_proc(atl_chain_t* chain, chain_step_t* const step);
+static bool atl_chain_step_loop_start_proc(atl_chain_t* chain, chain_step_t* const step);
+static bool atl_chain_step_loop_end_proc(atl_chain_t* chain, chain_step_t* const step);
+static bool atl_chain_step_delay_proc(atl_chain_t* chain, chain_step_t* const step);
+
 /*******************************************************************************
  * Local types definitions
  ******************************************************************************/
@@ -51,7 +57,6 @@ static void atl_chain_step_cb(const bool result, void* const ctx, const void* co
     step->state = result ? ATL_CHAIN_STEP_SUCCESS : ATL_CHAIN_STEP_ERROR;
     step->execution_count++;
     ATL_DEBUG("[ATL][INFO] Step '%s' completed with %s", step->name, result ? "SUCCESS" : "ERROR");
-    if(result) step->was_executed_successfully = true;
     if(step->action.func.cb) step->action.func.cb(result, step->action.func.ctx, data);
   }
 }
@@ -104,30 +109,66 @@ static uint32_t atl_chain_find_step_index_by_name(const atl_chain_t* const chain
 }
 
 /*******************************************************************************
- ** @brief  Check jump valid
+ ** @brief  Find step index by name
  ** @param  none
  ** @retval none
  *******************************************************************************/
-static bool atl_chain_validate_loop_jump(const atl_chain_t* const chain, const uint32_t target_index) 
+static bool atl_chain_execute_step_prepare(atl_chain_t* const chain, const uint32_t target_index)
 {
-  if(target_index == chain->current_step) return true; // Jump to myself is OK
-
-  int32_t loop_balance = 0;
-  uint32_t start = (target_index > chain->current_step) ? chain->current_step : target_index;
-  uint32_t end = (target_index > chain->current_step) ? target_index : chain->current_step;
-
-  for(uint32_t i = start; i < end; i++) 
+  if(target_index != chain->current_step) //check loops
   {
-    if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)    loop_balance++;
-    else if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_END) loop_balance--;
+    if(target_index > chain->current_step) //forward dest
+    {
+      for(uint32_t i = chain->current_step; i < target_index; i++) 
+      {
+        if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)
+        {
+          if(chain->loop_stack_ptr >= chain->loop_stack_size) return false;
+          chain->loop_stack[chain->loop_stack_ptr].start_step_index = i;
+          chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
+          chain->loop_stack_ptr++;
+          chain->steps[i].state = ATL_CHAIN_STEP_SUCCESS;
+        }
+        else if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_END)
+        {
+          if(!chain->loop_stack_ptr) return false;
+          atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
+          chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
+          chain->loop_stack_ptr--;
+          loop_start->state = ATL_CHAIN_STEP_IDLE;
+          current_loop->iteration_count = 0;
+        }
+      }
+    }
+    else //backward dest
+    {
+      for(uint32_t i = chain->current_step; i > target_index; i--) 
+      {
+        if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)
+        {
+          if(chain->steps[i].state == ATL_CHAIN_STEP_IDLE) continue;
+          if(!chain->loop_stack_ptr) return false;
+          atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
+          chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
+          chain->loop_stack_ptr--;
+          loop_start->state = ATL_CHAIN_STEP_IDLE;
+          current_loop->iteration_count = 0;
+        }
+      }
+      for(uint32_t i = 0; i < target_index; i++) 
+      {
+        if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)
+        {
+          if(chain->steps[i].state != ATL_CHAIN_STEP_IDLE) continue;
+          if(chain->loop_stack_ptr >= chain->loop_stack_size) return false;
+          chain->loop_stack[chain->loop_stack_ptr].start_step_index = i;
+          chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
+          chain->loop_stack_ptr++;
+          chain->steps[i].state = ATL_CHAIN_STEP_SUCCESS;
+        }
+      }
+    } 
   }
-
-  if(loop_balance != 0) 
-  {
-    ATL_DEBUG("[ERROR] Invalid jump: loop structure would be broken (balance: %d)", loop_balance);
-    return false;
-  }
-
   return true;
 }
 
@@ -147,17 +188,17 @@ static bool atl_chain_execute_step_jump(atl_chain_t* const chain, const char* co
     chain->current_step++;
     return true;
   }
-
   if(strcmp(target_name, "PREV") == 0) 
   {
-    if(chain->current_step) chain->current_step--;
+    if(chain->current_step) chain->current_step--; //not first
+    else return false;
     return true;
   }
   
   uint32_t target_index = atl_chain_find_step_index_by_name(chain, target_name);
   if(target_index == UINT32_MAX) return false;
-
-  if(!atl_chain_validate_loop_jump(chain, target_index)) return false;
+    
+  if(!atl_chain_execute_step_prepare(chain, target_index)) return false;
 
   chain->current_step = target_index;
   return true;
@@ -177,7 +218,6 @@ static void atl_chain_reset_state(atl_chain_t* const chain)
   {
     chain->steps[i].state = ATL_CHAIN_STEP_IDLE;
     chain->steps[i].execution_count = 0;
-    chain->steps[i].was_executed_successfully = false;
   }
 }
 
@@ -189,166 +229,188 @@ static void atl_chain_reset_state(atl_chain_t* const chain)
 static bool atl_chain_process_step(atl_chain_t* const chain) 
 {
   DBC_REQUIRE(501, chain);
-
+  bool res = true;
   if(chain->current_step >= chain->step_count) // Check if chain completed
   { 
     chain->is_running = false;
     ATL_DEBUG("[ATL][INFO] Chain '%s' completed", chain->name);
-    return false;
+    res = false;
+    return res;
   }
   chain_step_t *step = &chain->steps[chain->current_step];
-
   DBC_ASSERT(502, step);
-
   switch(step->type) 
   {
-    case ATL_CHAIN_STEP_FUNCTION: 
-    {
-      switch(step->state) 
-      {
-            case ATL_CHAIN_STEP_IDLE: ATL_DEBUG("[ATL][INFO] Starting step '%s'", step->name); // Start executing the function
-                                      step->state = ATL_CHAIN_STEP_RUNNING;
-                                      if(!step->action.func.function(atl_chain_step_cb, step->action.func.param, chain))
-                                      {
-                                        ATL_DEBUG("[ERROR] Failed to start step '%s'", step->name);
-                                        step->state = ATL_CHAIN_STEP_ERROR;
-                                        step->execution_count++;
-                                      }
-                                      break; 
-            
-         case ATL_CHAIN_STEP_RUNNING: // Waiting for callback - do nothing this cycle
-                                      break;
-            
-         case ATL_CHAIN_STEP_SUCCESS: step->was_executed_successfully = true; // Function completed successfull
-                                      step->state = ATL_CHAIN_STEP_IDLE;
-                                      step->execution_count = 0; 
-                                      if(!atl_chain_execute_step_jump(chain, step->action.func.success_target)) // Jump to success target
-                                      {
-                                        chain->is_running = false;
-                                        return false;
-                                      }
-                                      break;
-            
-           case ATL_CHAIN_STEP_ERROR: ATL_DEBUG("[ERROR] Step '%s' failed (attempt %u/%u)", step->name, step->execution_count, step->action.func.max_retries);  // Function completed with error
-                                      if(step->execution_count <= step->action.func.max_retries) // Check if we should retry
-                                      { 
-                                        step->state = ATL_CHAIN_STEP_IDLE;
-                                        ATL_DEBUG("[ATL][INFO] Retrying '%s' after delay", step->name);
-                                      } 
-                                      else 
-                                      {
-                                        step->state = ATL_CHAIN_STEP_IDLE;
-                                        step->execution_count = 0; 
-                                        if(!atl_chain_execute_step_jump(chain, step->action.func.error_target)) 
-                                        {
-                                          chain->is_running = false;
-                                          return false;
-                                        }
-                                      }
-                                      break;
-      }
-      break;
-    }
-
-    case ATL_CHAIN_STEP_CONDITION: 
-    {
-      if(step->action.cond.condition) // Conditions are executed synchronously
-      {
-        bool condition_result = step->action.cond.condition();
-        ATL_DEBUG("[ATL][INFO] Condition '%s': %s", step->name, condition_result ? "true" : "false");
-        const char *target = condition_result ? step->action.cond.true_target : step->action.cond.false_target;  // Jump based on condition result
-        if(!atl_chain_execute_step_jump(chain, target)) 
-        {
-          chain->is_running = false;
-          return false;
-        }
-      } 
-      else 
-      {
-        ATL_DEBUG("[ATL][INFO] Condition '%s' has no function", step->name);
-        chain->is_running = false;
-        return false;
-      }
-      break;
-    }
-          
-    case ATL_CHAIN_STEP_LOOP_START: 
-    {
-      if(chain->loop_stack_ptr < chain->loop_stack_size) // Start of loop - push current position to stack
-      {
-        if(step->state == ATL_CHAIN_STEP_IDLE) 
-        {
-          chain->loop_stack[chain->loop_stack_ptr].start_step_index = chain->current_step;
-          chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
-          chain->loop_stack_ptr++;
-          step->state = ATL_CHAIN_STEP_SUCCESS;
-          ATL_DEBUG("[ATL][INFO] Loop START, iterations: %u", step->action.loop_count);
-        }
-        chain->current_step++;
-      } 
-      else 
-      {
-        ATL_DEBUG("[ERROR] Loop stack overflow!", NULL);
-        chain->is_running = false;
-        return false;
-      }
-      break;
-    }
-          
-    case ATL_CHAIN_STEP_LOOP_END: 
-    {
-      if(chain->loop_stack_ptr > 0) // End of loop - check if we should continue looping
-      {
-        atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
-        chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
-        current_loop->iteration_count++;
-
-        if(loop_start->action.loop_count == 0 || current_loop->iteration_count < loop_start->action.loop_count) // 0 = infinite loop, otherwise check iteration count
-        {
-          chain->current_step = current_loop->start_step_index;
-          ATL_DEBUG("[ATL][INFO] Loop iteration %u", current_loop->iteration_count);
-        } 
-        else 
-        {
-          chain->loop_stack_ptr--;
-          loop_start->state = ATL_CHAIN_STEP_IDLE;
-          current_loop->iteration_count = 0;
-          chain->current_step++;
-          ATL_DEBUG("[ATL][INFO] Loop completed after %u iterations", current_loop->iteration_count);
-        }
-      }
-      else 
-      {
-        ATL_DEBUG("[ATL][ERROR] Loop end without start!", NULL);
-        chain->is_running = false;
-        return false;
-      }
-      break;
-    }
-          
-    case ATL_CHAIN_STEP_DELAY: 
-    {
-      #ifndef ATL_TEST
-      if(!step->action.delay.start) 
-      {
-        ATL_DEBUG("[ATL][INFO] Chain step delay %d ms", step->action.delay.value);
-        ATL_DEBUG("[ATL][INFO] Wait....", NULL);
-        step->action.delay.start = atl_get_cur_time();
-      }
-      if(atl_get_cur_time() >= (step->action.delay.start + step->action.delay.value)) 
-      #endif
-      {
-        step->state = ATL_CHAIN_STEP_IDLE;
-        step->action.delay.start = 0;
-        chain->current_step++;
-      }
-      break;
-    }
-          
-    default:
-      ATL_DEBUG("[ERROR] Unknown step type: %d", step->type);
+    case ATL_CHAIN_STEP_FUNCTION:   res = atl_chain_step_function_proc(chain, step);   break;
+    case ATL_CHAIN_STEP_EXEC:       res = atl_chain_step_exec_proc(chain, step);       break;
+    case ATL_CHAIN_STEP_LOOP_START: res = atl_chain_step_loop_start_proc(chain, step); break;
+    case ATL_CHAIN_STEP_LOOP_END:   res = atl_chain_step_loop_end_proc(chain, step);   break;
+    case ATL_CHAIN_STEP_DELAY:      res = atl_chain_step_delay_proc(chain, step);      break;
+    default: 
+      ATL_DEBUG("[ATL][ERROR] Unknown step type: %d", step->type);
       chain->is_running = false;
       return false;
+  }
+  return true;
+}
+
+/** 
+ * @brief Chain step function proc
+ */
+static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const step)
+{
+  switch(step->state) 
+  {
+     case ATL_CHAIN_STEP_IDLE: 
+          ATL_DEBUG("[ATL][INFO] Starting step '%s'", step->name); // Start executing the function
+          step->state = ATL_CHAIN_STEP_RUNNING;
+          if(!step->action.func.function(atl_chain_step_cb, step->action.func.param, chain))
+          {
+            ATL_DEBUG("[ERROR] Failed to start step '%s'", step->name);
+            step->state = ATL_CHAIN_STEP_ERROR;
+            step->execution_count++;
+          }
+          break; 
+     case ATL_CHAIN_STEP_RUNNING: // Waiting for callback - do nothing this cycle
+          break;
+     case ATL_CHAIN_STEP_SUCCESS: 
+          step->state = ATL_CHAIN_STEP_IDLE;
+          step->execution_count = 0; 
+          if(!atl_chain_execute_step_jump(chain, step->action.func.success_target)) // Jump to success target
+          {
+            chain->is_running = false;
+            return false;
+          }
+          break;
+     case ATL_CHAIN_STEP_ERROR: 
+          ATL_DEBUG("[ERROR] Step '%s' failed (attempt %u/%u)", step->name, step->execution_count, step->action.func.max_retries);  // Function completed with error
+          if(step->execution_count <= step->action.func.max_retries) // Check if we should retry
+          { 
+            step->state = ATL_CHAIN_STEP_IDLE;
+            ATL_DEBUG("[ATL][INFO] Retrying '%s' after delay", step->name);
+          } 
+          else 
+          {
+            step->state = ATL_CHAIN_STEP_IDLE;
+            step->execution_count = 0; 
+            if(!atl_chain_execute_step_jump(chain, step->action.func.error_target)) 
+            {
+              chain->is_running = false;
+              return false;
+            }
+          }
+          break;
+      default:
+          chain->is_running = false;
+          return false;
+  }
+  return true;
+}
+
+/** 
+ * @brief Chain step exec proc
+ */
+static bool atl_chain_step_exec_proc(atl_chain_t* chain, chain_step_t* const step)
+{
+  if(step->action.exec.function) // Exec are executed synchronously
+  {
+    bool exec_result = step->action.exec.function();
+    ATL_DEBUG("[ATL][INFO] Execution '%s': %s", step->name, exec_result ? "true" : "false");
+    const char *target = exec_result ? step->action.exec.true_target : step->action.exec.false_target;  // Jump based on exec result
+    if(!atl_chain_execute_step_jump(chain, target)) 
+    {
+      chain->is_running = false;
+      return false;
+    }
+  } 
+  else 
+  {
+    ATL_DEBUG("[ATL][INFO] Execution '%s' has no function", step->name);
+    chain->is_running = false;
+    return false;
+  }  
+  return true;
+}
+
+/** 
+ * @brief Chain step loop start proc
+ */
+static bool atl_chain_step_loop_start_proc(atl_chain_t* chain, chain_step_t* const step)
+{
+  if(chain->loop_stack_ptr < chain->loop_stack_size) // Start of loop - push current position to stack
+  {
+    if(step->state == ATL_CHAIN_STEP_IDLE) 
+    {
+      chain->loop_stack[chain->loop_stack_ptr].start_step_index = chain->current_step;
+      chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
+      chain->loop_stack_ptr++;
+      step->state = ATL_CHAIN_STEP_SUCCESS;
+      ATL_DEBUG("[ATL][INFO] Loop start, iterations: %u", step->action.loop_count);
+    }
+    chain->current_step++;
+  } 
+  else 
+  {
+    ATL_DEBUG("[ATL][ERROR] Loop stack overflow!", NULL);
+    chain->is_running = false;
+    return false;
+  }
+  return true;
+}
+
+/** 
+ * @brief Chain step loop end proc
+ */
+static bool atl_chain_step_loop_end_proc(atl_chain_t* chain, chain_step_t* const step)
+{
+  (void)step;
+  if(chain->loop_stack_ptr > 0) // End of loop - check if we should continue looping
+  {
+    atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
+    chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
+    current_loop->iteration_count++;
+
+    if(loop_start->action.loop_count == 0 || current_loop->iteration_count < loop_start->action.loop_count) // 0 = infinite loop, otherwise check iteration count
+    {
+      chain->current_step = current_loop->start_step_index;
+      ATL_DEBUG("[ATL][INFO] Loop iteration %u", current_loop->iteration_count);
+    } 
+    else 
+    {
+      chain->loop_stack_ptr--;
+      loop_start->state = ATL_CHAIN_STEP_IDLE;
+      current_loop->iteration_count = 0;
+      chain->current_step++;
+      ATL_DEBUG("[ATL][INFO] Loop completed after %u iterations", current_loop->iteration_count);
+    }
+  }
+  else 
+  {
+    ATL_DEBUG("[ATL][ERROR] Loop end without start!", NULL);
+    chain->is_running = false;
+    return false;
+  }
+  return true;
+}
+
+/** 
+ * @brief Chain step delay proc
+ */
+static bool atl_chain_step_delay_proc(atl_chain_t* chain, chain_step_t* const step)
+{
+  #ifndef ATL_TEST
+  if(!step->action.delay.start) 
+  {
+    ATL_DEBUG("[ATL][INFO] Chain step delay %d ms", step->action.delay.value);
+    ATL_DEBUG("[ATL][INFO] Wait....", NULL);
+    step->action.delay.start = atl_get_cur_time();
+  }
+  if(atl_get_cur_time() >= (step->action.delay.start + step->action.delay.value)) 
+  #endif
+  {
+    step->state = ATL_CHAIN_STEP_IDLE;
+    step->action.delay.start = 0;
+    chain->current_step++;
   }
   return true;
 }

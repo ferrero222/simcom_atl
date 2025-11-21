@@ -121,7 +121,7 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
 /*******************************************************************************
  ** @brief  Function to connect socket.
  ** @param  cb     cb when proc will be done. Can be NULL
- ** @param  param  input param if function is required them. Here is @atl_mdl_tcp_server_t
+ ** @param  param  input param if function is required them. Here is ptr to char* data
  **                Should exist only when this function is executing
  ** @param  ctx    Context of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
@@ -131,7 +131,7 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
 {
   DBC_REQUIRE(201, param);
   DBC_REQUIRE(202, atl_get_init().init);
-  atl_mdl_tcp_server_t* tcp = (atl_mdl_tcp_server_t*)param;
+  atl_mdl_tcp_data_t* tcp = (atl_mdl_tcp_data_t*)param;
   size_t size = strlen(ATL_CMD_SAVE) + strlen(tcp->data) + strlen(ATL_CMD_CTRL_Z) +1; 
   char cipsend[64] = {0}; 
   char* datacmd = (char*)atl_malloc(size);
@@ -141,12 +141,13 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
     return false; 
   } 
   snprintf(cipsend, sizeof(cipsend), "%sAT+CIPSEND=%d%s", ATL_CMD_SAVE, (int)(size - strlen(ATL_CMD_SAVE)), ATL_CMD_CRLF); 
-  snprintf(datacmd, size, "%s%s%s", ATL_CMD_SAVE, datacmd, ATL_CMD_CTRL_Z); 
+  snprintf(datacmd, size, "%s%s%s", ATL_CMD_SAVE, tcp->data, ATL_CMD_CTRL_Z); 
   atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
     ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: CONNECT OK", 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM(cipsend,                                    ">",  5, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM(datacmd,                         "+IPD&SEND OK",  5, 500,  0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(NULL,                         "+IPD&SEND OK",  5, 500,  0, 0, NULL, NULL, ATL_NO_ARG),
   };
   atl_free(datacmd);
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;

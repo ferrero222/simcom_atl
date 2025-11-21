@@ -19,6 +19,8 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE")
 
+#warning "TODO: EXEC; CHAIN выход из циклов в ошибки; одинаковые имена проверка; итерация цикла происходит только в end"
+
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
  ******************************************************************************/
@@ -223,11 +225,14 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
 
   ringslice_cnt_t proced_data = 0;
   
+  char* prefix = item->answ.prefix;
+  if(prefix && !strncmp(prefix, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE))) prefix += strlen(ATL_CMD_SAVE);
+
   switch((rs_req_exist << 2) | (rs_res_exist << 1) | rs_data_exist) // Bitmask: REQ[bit2] RES[bit1] DATA[bit0]
   {
       case 0x06: //0b110 - REQ RES NULL (REQ, NO PREFIX, NO FORMAT)
            if(!item->req || ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = -1;
-           else if(item->answ.prefix || item->answ.format) res = 0;
+           else if(prefix || item->answ.format) res = 0;
            else res = 1;
            if(res != 0) proced_data = (uint16_t)rs_res->last;
            break;
@@ -236,7 +241,7 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
            else if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = -1;
            else res = 1;
            if(res > 0){
-             if(item->answ.prefix) res = atl_string_boolean_ops(rs_data, item->answ.prefix);
+             if(prefix) res = atl_string_boolean_ops(rs_data, prefix);
              if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
            }
            #ifndef ATL_TEST
@@ -244,15 +249,15 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
            else                                         proced_data = (uint16_t)rs_data->last;
            #endif
            break;
-      case 0x01: //0b001 - NULL NULL DATA (NO REQ +PREFIX +FORMAT)
-           if(item->req || !item->answ.prefix || !item->answ.format) break;
-           res = atl_string_boolean_ops(rs_data, item->answ.prefix);
-           res = atl_cmd_sscanf(rs_data, item);
+      case 0x01: //0b001 - NULL NULL DATA (PREFIX)
+           if(!prefix) break;
+           res = atl_string_boolean_ops(rs_data, prefix);
+           if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
            if(res > 0) proced_data = (uint16_t)rs_data->last;
            break;
-      case 0x05: //0b101 - REQ NULL DATA (REQ +PREFIX +FORMAT)
-           if(!item->req) break;
-           if(item->answ.prefix) res = atl_string_boolean_ops(rs_data, item->answ.prefix);
+      case 0x05: //0b101 - REQ NULL DATA (REQ +PREFIX)
+           if(!item->req || !prefix) break;
+           res = atl_string_boolean_ops(rs_data, prefix);
            if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
            if(res > 0) proced_data = (uint16_t)rs_data->last;
            break;
@@ -454,6 +459,14 @@ bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount,
       strcpy((char*)new_mem, tmp_req);
       cur_entity->item[i].req = (char*)new_mem;
     }
+    if(item[i].answ.prefix && strncmp(item[i].answ.prefix, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0)
+    {
+      char* tmp_prefix = item[i].answ.prefix;
+      uint8_t* new_mem = atl_malloc(strlen(tmp_prefix) + 1);
+      if(!new_mem) goto error_exit;
+      strcpy((char*)new_mem, tmp_prefix);
+      cur_entity->item[i].answ.prefix = (char*)new_mem;
+    }
   }
   cur_entity->item_cnt = item_amount;
   cur_entity->cb = cb;
@@ -495,6 +508,7 @@ bool atl_entity_dequeue(void)
   {
     atl_item_t* item = &cur_entity->item[cur_entity->item_cnt -item_amount];
     if(item->req && strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_free(item->req);
+    if(item->answ.prefix && strncmp(item->answ.prefix, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_free(item->answ.prefix);
     if(item->answ.ptrs && cur_entity->data)
     {
       uint8_t ptr_count = 0;

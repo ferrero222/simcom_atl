@@ -29,6 +29,7 @@ uint16_t test_write(uint8_t* buff, uint16_t len) {
 }
 
 void test_printf(const char* string) {
+  (void)string;
   return;
 }
 
@@ -140,11 +141,11 @@ TEST_GROUP("ATL") {
         ATL_ITEM(ATL_CMD_SAVE"AT+GMM"ATL_CMD_CRLF,    NULL, 2, 150, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_id)),  
         ATL_ITEM("AT+GMR"ATL_CMD_CRLF,                NULL, 2, 150, 0, 1, NULL,      "Revision:%29[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_rev)),                
         ATL_ITEM("AT+CCLK?"ATL_CMD_CRLF,              NULL, 2, 150, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ATL_ARG(atl_mdl_rtd_t, modem_clock)),          
-        ATL_ITEM("AT+CCID"ATL_CMD_CRLF,            "+CCLK", 2, 150, 0, 1, NULL,               "%21[^\x0d]", ATL_ARG(atl_mdl_rtd_t, sim_iccid)),             
-        ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,           "+COPS", 2, 150, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
-        ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,              "+CSQ", 2, 150, 0, 1, NULL,                 "+CSQ: %d", ATL_ARG(atl_mdl_rtd_t, sim_rssi)),             
-        ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,             NULL, 2, 600, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
-        ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,              NULL, 2, 600, 0, 0, NULL,                       NULL, ATL_NO_ARG),  
+        ATL_ITEM("AT+CCID"ATL_CMD_CRLF,   ATL_CMD_SAVE"+CCLK", 2, 150, 0, 1, NULL,               "%21[^\x0d]", ATL_ARG(atl_mdl_rtd_t, sim_iccid)),             
+        ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,  ATL_CMD_SAVE"+COPS", 2, 150, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
+        ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,     ATL_CMD_SAVE"+CSQ", 2, 150, 0, 1, NULL,                 "+CSQ: %d", ATL_ARG(atl_mdl_rtd_t, sim_rssi)),             
+        ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,              NULL, 2, 600, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
+        ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,               NULL, 2, 600, 0, 0, NULL,                       NULL, ATL_NO_ARG),  
       };         
       bool res = atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), NULL, sizeof(atl_mdl_rtd_t), NULL);
       VERIFY(res);
@@ -306,7 +307,7 @@ TEST_GROUP("ATL") {
       atl_init(test_printf, test_write, &atl_ring_buffer);      
       atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
       {
-        ATL_ITEM("AT+TEST?"ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
+        ATL_ITEM(ATL_CMD_SAVE"AT+TEST?"ATL_CMD_CRLF, ATL_CMD_SAVE"+TEST", 2, 150, 0, 1, NULL,"+TEST: %4[^,]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
       };
       bool res = atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), NULL, sizeof(atl_mdl_rtd_t), NULL);
       VERIFY(res);
@@ -910,7 +911,7 @@ TEST_GROUP("ATL") {
       VERIFY(!atl_get_init().init);
     }
 
-    TEST("atl_chain_create() nested loops with delay, condition and prev") {
+    TEST("atl_chain_create() nested loops with delay, exec and prev") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
       uint16_t parce_buffer_tail = 0;
       uint16_t parce_buffer_head = strlen(parce_buffer);
@@ -944,7 +945,7 @@ TEST_GROUP("ATL") {
           ATL_CHAIN("SOCKET SEND RECIVE", "NEXT", "SOCKET DISCONNECT", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
           ATL_CHAIN_LOOP_END,
 //      }
-        ATL_CHAIN_COND("CHECK CONN", "NEXT", "MODEM RESET", testChainCond),
+        ATL_CHAIN_EXEC("CHECK CONN", "NEXT", "MODEM RESET", testChainCond),
         ATL_CHAIN("SOCKET DISCONNECT", "NEXT", "PREV", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
         ATL_CHAIN("GPRS DEINIT",       "NEXT", "MODEM RESET", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
         ATL_CHAIN("MODEM RESET",       "NEXT", "MODEM RESET", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
@@ -963,6 +964,56 @@ TEST_GROUP("ATL") {
       atl_deinit();
       VERIFY(!atl_get_init().init);
     }
+
+    TEST("atl_chain_create() nested loop with backward and forward falltrough") {
+      char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
+      uint16_t parce_buffer_tail = 0;
+      uint16_t parce_buffer_head = strlen(parce_buffer);
+
+      atl_ring_buffer_t ring = {
+        .buffer = (uint8_t*)parce_buffer,
+        .count = 0,
+        .head = parce_buffer_head,
+        .tail = parce_buffer_tail,
+        .size = 2048,
+      };
+      atl_init(test_printf, test_write, &ring);
+
+      chain_step_t server_steps[] = 
+      {   
+        ATL_CHAIN("1",     "4", "MODEM RESET", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+        ATL_CHAIN("2",      "3", "MODEM RESET", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+        ATL_CHAIN_LOOP_START(3), 
+//      {
+          ATL_CHAIN("3", "5", "SOCKET DISCONNECT", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+          ATL_CHAIN_LOOP_START(3), 
+//        {
+            ATL_CHAIN("4", "2", "SOCKET DISCONNECT", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+            ATL_CHAIN_LOOP_END,
+//        {        
+          ATL_CHAIN_LOOP_END,
+//      }
+        ATL_CHAIN_EXEC("5",  "NEXT", "MODEM RESET", testChainCond),
+        ATL_CHAIN("6",       "NEXT", "PREV", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+        ATL_CHAIN("7",       "NEXT", "MODEM RESET", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+        ATL_CHAIN("8",       "NEXT", "MODEM RESET", testChainFunc, testEntityCB, test_buffer, test_buffer, 3),
+      };
+
+      atl_chain_t* chain = atl_chain_create("TCP", server_steps, sizeof(server_steps)/sizeof(chain_step_t));
+      VERIFY(chain->step_count == sizeof(server_steps)/sizeof(chain_step_t));
+      atl_chain_start(chain);
+      VERIFY(chain->is_running);
+      while(atl_chain_is_running(chain))
+      {
+        bool res = atl_chain_run(chain);
+        if(atl_chain_is_running(chain)) VERIFY(res);
+      }
+      VERIFY(chain->loop_stack_ptr == 0);
+      atl_chain_destroy(chain);
+      atl_deinit();
+      VERIFY(!atl_get_init().init);
+    }
+
   } //ATL_CHAIN====================================================================
 
 } // TEST_GROUP()
