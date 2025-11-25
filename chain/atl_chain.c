@@ -57,7 +57,7 @@ static void atl_chain_step_cb(const bool result, void* const ctx, const void* co
     step->state = result ? ATL_CHAIN_STEP_SUCCESS : ATL_CHAIN_STEP_ERROR;
     step->execution_count++;
     ATL_DEBUG("[ATL][INFO] Step '%s' completed with %s", step->name, result ? "SUCCESS" : "ERROR");
-    if(step->action.func.cb) step->action.func.cb(result, step->action.func.ctx, data);
+    step->action.func.cb(result, step->action.func.ctx, data);
   }
 }
 
@@ -104,7 +104,7 @@ static uint32_t atl_chain_find_step_index_by_name(const atl_chain_t* const chain
       return i;
     }
   }
-  ATL_DEBUG("[ERROR] Step '%s' not found!", step_name);
+  ATL_DEBUG("[ATL][ERROR] Step '%s' not found!", step_name);
   return UINT32_MAX;
 }
 
@@ -266,7 +266,7 @@ static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const
           step->state = ATL_CHAIN_STEP_RUNNING;
           if(!step->action.func.function(atl_chain_step_cb, step->action.func.param, chain))
           {
-            ATL_DEBUG("[ERROR] Failed to start step '%s'", step->name);
+            ATL_DEBUG("[ATL][ERROR] Failed to start step '%s'", step->name);
             step->state = ATL_CHAIN_STEP_ERROR;
             step->execution_count++;
           }
@@ -283,11 +283,11 @@ static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const
           }
           break;
      case ATL_CHAIN_STEP_ERROR: 
-          ATL_DEBUG("[ERROR] Step '%s' failed (attempt %u/%u)", step->name, step->execution_count, step->action.func.max_retries);  // Function completed with error
-          if(step->execution_count <= step->action.func.max_retries) // Check if we should retry
+          ATL_DEBUG("[ATL][ERROR] Step '%s' failed (attempt %u/%u)", step->name, step->execution_count, step->action.func.max_retries);  // Function completed with error
+          if(step->execution_count < step->action.func.max_retries) // Check if we should retry
           { 
             step->state = ATL_CHAIN_STEP_IDLE;
-            ATL_DEBUG("[ATL][INFO] Retrying '%s' after delay", step->name);
+            ATL_DEBUG("[ATL][INFO] Retrying '%s'", step->name);
           } 
           else 
           {

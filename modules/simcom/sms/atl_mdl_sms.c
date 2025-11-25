@@ -50,9 +50,9 @@ bool atl_mdl_sms_format_set(const atl_entity_cb_t cb, const void* const param, v
   char cmgf[32] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(cmgf, sizeof(cmgf), "%sAT+CMGF=%d%s", ATL_CMD_SAVE, sms->format, ATL_CMD_CRLF); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM(cmgf, NULL, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cmgf, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -73,9 +73,9 @@ bool atl_mdl_sms_sc_set(const atl_entity_cb_t cb, const void* const param, void*
   char csca[64] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(csca, sizeof(csca), "%sAT+CSCA=%s%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CRLF); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM(csca, NULL, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(csca, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -98,12 +98,12 @@ bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, vo
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(cmgs, sizeof(cmgs), "%sAT+CMGS=\"%s\"%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CRLF); 
   snprintf(text, sizeof(text), "%s%s%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CTRL_Z); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF,       NULL, 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CSCS=\"GSM\""ATL_CMD_CRLF, NULL, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cmgs,                           ">", 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(text,                          NULL, 2, 500, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CSCS=\"GSM\""ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cmgs,                           ">", ATL_PARCE_RAW,    1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(text,                          NULL, ATL_PARCE_RAW,    2, 500, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -124,10 +124,10 @@ bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, void* c
   char cmgr[64] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(cmgr, sizeof(cmgr), "%sAT+CMGR=%d,%d%s", ATL_CMD_SAVE, sms->index, true, ATL_CMD_CRLF);
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   { 
-    ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF, NULL, 1, 15, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cmgr, NULL, 2, 150, 0, 0, NULL, "+CMGR: \"%*[^\"]\",\"%[^\"]\",%*[^\x0d]\x0d\x0a%[^\x0d]", ATL_ARG(atl_mdl_sms_msg_t, num), ATL_ARG(atl_mdl_sms_msg_t, msg)),
+    ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 1, 15, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cmgr, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, NULL, "+CMGR: \"%*[^\"]\",\"%[^\"]\",%*[^\x0d]\x0d\x0a%[^\x0d]", ATL_ARG(atl_mdl_sms_msg_t, num), ATL_ARG(atl_mdl_sms_msg_t, msg)),
 
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_sms_msg_t), ctx)) return false;
@@ -149,9 +149,9 @@ bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, void*
   char cmgd[64] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(cmgd, sizeof(cmgd), "%sAT+CMGD=%d%s", ATL_CMD_SAVE, sms->index, ATL_CMD_CRLF); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   { 
-    ATL_ITEM(cmgd, NULL, 1, 150, 0, 0, NULL, NULL,ATL_NO_ARG),
+    ATL_ITEM(cmgd, NULL, ATL_PARCE_SIMCOM, 1, 150, 0, 0, NULL, NULL,ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -172,9 +172,9 @@ bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, voi
   char cnmi[64] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(cnmi, sizeof(cnmi), "%sAT+CNMI=%d%s", ATL_CMD_SAVE, sms->index, ATL_CMD_CRLF); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   { 
-    ATL_ITEM(cnmi, NULL, 1, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cnmi, NULL, ATL_PARCE_SIMCOM, 1, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;

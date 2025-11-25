@@ -23,8 +23,8 @@
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
-#define ATL_CMD_SAVE             "SAVE:"
-#define ATL_CMD_FORCE            "FORCE"
+#define ATL_CMD_SAVE             "<S>"
+#define ATL_CMD_FORCE            "<F>"
 #define ATL_CMD_CRLF             "\r\n"
 #define ATL_CMD_CR               "\r"
 #define ATL_CMD_LF               "\n"
@@ -35,9 +35,10 @@
 #define ATL_ITEM_SIZE            sizeof(atl_item_t)
 #define ATL_URC_SIZE             sizeof(atl_urc_queue_t)
 
-#define ATL_ITEM(req_, prefix_, retries_, timeout_, err_step_, ok_step_, cb_, format_, ...) \
+#define ATL_ITEM(req_, prefix_, parce_type_, retries_, timeout_, err_step_, ok_step_, cb_, format_, ...) \
 { \
   .req = req_, \
+  .parce_type = parce_type_, \
   .answ = \
   { \
     .prefix = prefix_, \
@@ -66,6 +67,13 @@
 typedef void (*answ_parce_cb_t)(ringslice_t data_slice, bool result, void* const data);
 typedef void (*atl_urc_cb)(ringslice_t urc_slice);   //urc callback type
 
+typedef uint8_t atl_parce_type_t;
+enum
+{
+  ATL_PARCE_SIMCOM = 1,  //ECHO\r\r\nRES\r\nDATA\r\n
+  ATL_PARCE_RAW,         //> RAW DATA
+};
+
 typedef struct atl_urc_queue_t{
   char* prefix;  // Char prefix to find the URC
   atl_urc_cb cb; // Callback for this URC
@@ -74,6 +82,7 @@ typedef struct atl_urc_queue_t{
 typedef struct atl_item_t
 {
   char* req;  //Sended request, could be string or literal
+  atl_parce_type_t parce_type;
   struct{
     char *prefix;        //Prefix to find in answer
     char *format;        //format for parcing answer
@@ -236,12 +245,12 @@ void atl_free(void* ptr);
 
 #ifdef ATL_TEST
 void _atl_core_proc(void);
-int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item);
+int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item, const ringslice_t rs_me);
 void _atl_parcer_process_urcs(const ringslice_t* me);
-void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req); 
-void _atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
-void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data); 
-int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+void _atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req); 
+void _atl_simcom_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
+void _atl_simcom_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data); 
+int _atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
                           const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
 int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern); 
 int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item); 

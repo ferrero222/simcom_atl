@@ -5,7 +5,7 @@
 ## 1. Особенности и свойства
 
 - **Асинхронность**: Все процессы библиотеки выполняются без единого блокирования системы
-- **Управление командами**: АПИ для создания и отправки групп AT-команд, построения сложных логических цепочек
+- **Управление командами**: АПИ для создания и отправки групп AT-команд, построения сложных логических цепочек, возможность добавления своего парсера.
 - **Память**: Библиотека после инициализации использует около 2.5кБ оперативной памяти по дефолту, зависит от размера выделенного буфера для пользовательского динамического аллокатора O1heap. [GitHub](https://github.com/pavel-kirienko/o1heap)
 - **Обработка ошибок**: Design by Contract (DBC) для надежной проверки ошибок.   [GitHub](https://github.com/QuantumLeaps/DBC-for-embedded-C)
 - **Потокобезопасность**: Защита критических секций для многопоточных приложений.
@@ -15,8 +15,6 @@
 - **Модули**: Набор предлагаемых, расширяемых готовых модулей групповых ат команд под контретные внешние устройства
 
 Протестировано с: SIM868....
-
----
 
 ## 2. Настройка и предварительные требования
 
@@ -90,8 +88,6 @@ void timer_10ms_handler(void) {
 }
 ```
 
----
-
 ## 3. АТ команды
 
 В файле `atl_core.h` представлено АПИ для работы с АТ командами и самим ядром библиотеки, содержащее:
@@ -111,24 +107,24 @@ void timer_10ms_handler(void) {
 ### Пример 1, групповые команды без форматирования ответа
 
 ```c
-atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
 {
-  ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT",  3, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,           ATL_CMD_FORCE, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1",  3, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", ATL_PARCE_SIMCOM,  3, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,           ATL_CMD_FORCE, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
+  ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
 };
 atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx);
 ```
@@ -136,17 +132,17 @@ atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx);
 ### Пример 2, групповые команды с форматированием ответа
 
 ```c
-atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
+atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
 {   
-  ATL_ITEM("AT+GSN"ATL_CMD_CRLF,       NULL, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
-  ATL_ITEM("AT+GMM"ATL_CMD_CRLF,       NULL, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_id)),  
-  ATL_ITEM("AT+GMR"ATL_CMD_CRLF,       NULL, 10, 100, 0, 1, NULL,      "Revision:%29[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_rev)),                
-  ATL_ITEM("AT+CCLK?"ATL_CMD_CRLF,  "+CCLK", 10, 100, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ATL_ARG(atl_mdl_rtd_t, modem_clock)),          
-  ATL_ITEM("AT+CCID"ATL_CMD_CRLF,      NULL, 10, 100, 0, 1, NULL,               "%21[^\x0d]", ATL_ARG(atl_mdl_rtd_t, sim_iccid)),             
-  ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,  "+COPS", 20, 100, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
-  ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,     "+CSQ", 10, 100, 0, 1, NULL,                 "+CSQ: %d", ATL_ARG(atl_mdl_rtd_t, sim_rssi)),             
-  ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL, 10, 100, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
-  ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL, 10, 100, 0, 0, atl_mdl_general_ceng_cb,    NULL, ATL_NO_ARG),                         
+  ATL_ITEM("AT+GSN"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
+  ATL_ITEM("AT+GMM"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_id)),  
+  ATL_ITEM("AT+GMR"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "Revision:%29[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_rev)),                
+  ATL_ITEM("AT+CCLK?"ATL_CMD_CRLF,  "+CCLK", ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ATL_ARG(atl_mdl_rtd_t, modem_clock)),          
+  ATL_ITEM("AT+CCID"ATL_CMD_CRLF,      NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%21[^\x0d]", ATL_ARG(atl_mdl_rtd_t, sim_iccid)),             
+  ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,  "+COPS", ATL_PARCE_SIMCOM, 20, 100, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
+  ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,     "+CSQ", ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                 "+CSQ: %d", ATL_ARG(atl_mdl_rtd_t, sim_rssi)),             
+  ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
+  ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, atl_mdl_general_ceng_cb,    NULL, ATL_NO_ARG),                         
 };
 atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), ctx);
 ```
@@ -158,6 +154,7 @@ atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd
 - **ATL_ITEM** - макрос для заполнения структуры, используйте для добавления АТ команды в группу.
 - **[REQ]** - сам запрос, состоит из конкатенации АТ команды и ATL_CMD_CRLF, в данном случае является строковым литералом, но может быть и массивом символов.
 - **[PREFIX]** - строковый литерал который будет искаться в ответе. Можно не указывать.
+- **[PARCE_TYPE]** - тип используемого парсера, читайте ниже.
 - **[FORMAT]** - формат парсинга ответа для SSCANF, используется вместе с VA_ARGS, полученные данные будут собраны в соответствии с этим форматом, положены в аргументы и переданы в коллбек группы. Можно не указывать.
 - **[RPT]** - количество повторов в случае возникновения ошибки.
 - **[WAIT]** - таймер ожидания ответа в 10мс.
@@ -172,7 +169,7 @@ atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd
 bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const ctx);
 ```
 
-- **item** - собственно наша группа АТ команд.
+- **item** - группа АТ команд.
 - **item_amount** - размер структуры команд.
 - **cb** - коллбек на всю группу, который будет вызван по исполнению этой группы. Можно не указывать
 - **data_size** - размер структуры данных которая будет создана динамически, автоматически, для сохранения данных указанных в полях [FORMAT] и [VA_ARGS], указатель на эту структуру вернется в коллбек на группу а после исполнения память для него будет очищена. Может не указываться (0).
@@ -213,17 +210,25 @@ void (*atl_entity_cb_t)(bool result, void* ctx, void* data);
 - В случае обработанных данных библиотека сама передвигает tail и counter вашего кольцевого буфера.
 
 
-### Формат, префикс, аргументы и парсер
-Парсер АТ команд работает таким образом, что сначала ищет эхо команды, потом результат выполнения а потом полезные данные, т.е. получаем три поля ответа: REQ, RES, DATA. Их комбинация, наличие и порядок могут изменяться от самой команды, у каждой по разному. Внутренний парсер обрабатывает только несколько комбинаций и возможных случаев, которых должно быть достаточно:
- -  **REQ  RES  NULL**  - парсер нашел эхо, нашел результат, но нет данных(пока?). В таком случае мы можем получить успех обработки только если передали в команду  запрос, без поля префикса, без формата и без аргументов.
- -  **REQ  NULL DATA**  - парсер нашел эхо и данные, но нет результата. Чтобы получить успех выполнения для такого типа, нужно передать в команду как минимум запрос и префикс, остальное по желанию.
- -  **REQ  RES  DATA**  - парсер нашел всё. Достаточно передать в команду только сам запрос чтобы получить успех, остальные поля по желанию.
- -  **NULL NULL DATA**  - есть только какие то данные. Мы можем получить успех в таком случае если передали как минимум префикс и он был успешно обработаны. Остальные поля по желанию.
-  
-  Таким образом, чтобы указать правильный набор параметров для успешной обработки, нужно заранее понимать, что вы получите в ответ на команду и в каком виде.
-Также стоит отметить что парсер получает поле DATA до первых \r\n. Т.е. если полезные данные в ответе на команду каким то образом перечислены через \r\n то парсер передаст лишь первую часть от них. В таких случая рекомендуется распарсить данные вручную используя свой кастомный колбек на команду куда передается весь этот буфер данных.
+### Парсеры 
+`ATL_PARCE_SIMCOM`<br> 
+ Парсер команд формата simcom. Данный парсер работает с включенным эхо. Обычно тут ответ на команды приходит последовательно ввиде: ЭХО → РЕЗУЛЬТАТ → ДАННЫЕ. Эхо в любом случае должно идти первым. Парсер работает таким же образом, что сначала ищет эхо команды, потом результат выполнения, а потом полезные данные, т.е. разбивает ответ на три поля: [REQ] [RES] [DATA]. Их комбинация, наличие и порядок могут изменяться от самой команды, у каждой по разному. Внутренний парсер обрабатывает только несколько комбинаций и возможных случаев, которых должно быть достаточно. Рассмотрим комбинации параметров при создании команды и какие ответы они поддерживают:
 
----
+| Указанные параметры команды | Необходимые поля ответа для таких параметров |
+|-------------------|----------------------------|
+| [REQ] | [REQ] [RES] с OK<br>[REQ] [RES] [DATA] с OK |
+| [REQ] [PREFIX] <br> [REQ] [PREFIX] [FORMAT] [ARG]| [REQ] [RES] [DATA] + проверка префикса и формата(если указан)<br>[REQ] [DATA] + проверка префикса и формата(если указан)<br>[DATA] + проверка префикса и формата(если указан) |
+| [PREFIX] | [DATA] + проверка префикса |
+| [PREFIX] [FORMAT] [ARG] | [DATA] + проверка префикса и формата |
+|
+
+Поле [DATA] обычно обрамляется символами CRLF — парсер находит границы по ним, удаляет их и работает с "чистыми" данными. Если [DATA] содержит многострочные данные с CRLF, парсер вернёт только ПЕРВУЮ строку.
+Для сложных случаев рекомендуется писать кастомный парсер через коллбек (пример: функция atl_mdl_rtd). Используйте таблицу выше чтобы правильно создать команду, заранее зная тип ответа и какие поля он содержит.
+
+
+`ATL_PARCE_RAW`<br> 
+Парсер команд формата пердачи данных. Парсит сырые данные просто проверяя их на совпадение с полем [PREFIX] если оно указано. Также если указано поле [FORMAT][ARG], то парсер попытается 
+отформатировать и получить полезные данные с самого начала буфера этих данных. Данные никак не подготавливаются а обрабтываются как есть, это необходимо учитывать. Поле [REQ] можно не указывать.
 
 ## 4. Создание логических цепочек
 
@@ -250,22 +255,20 @@ bool (*function)(atl_entity_cb_t cb, void* param, void* ctx);
 Например:
 
 ```c
-bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, void* const ctx);
+bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   DBC_REQUIRE(101, param);
   char cipstart[128] = {0}; 
   atl_mdl_tcp_server_t* tcp = (atl_mdl_tcp_server_t*)param;
-  snprintf(cipstart, sizeof(cipstart), "%sAT+CIPSTART=\"%s\",\"%s\",\"%s\"%s", 
-           ATL_CMD_SAVE, tcp->mode, tcp->ip, tcp->port, ATL_CMD_CRLF); 
-  
-  atl_item_t items[] = //[REQ][PREFIX][FORMAT][RPT][WAIT][STEPERROR][STEPOK][CB][...##VA_ARGS]
+  snprintf(cipstart, sizeof(cipstart), "%sAT+CIPSTART=\"%s\",\"%s\",\"%s\"%s", ATL_CMD_SAVE, tcp->mode, tcp->ip, tcp->port, ATL_CMD_CRLF); 
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   { 
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP STATUS|STATE: TCP CLOSED",           NULL, 2, 250,  0, 1, NULL, NULL),
-    ATL_ITEM(cipstart,                                           "CONNECT OK",           NULL, 5, 1600, 0, 1, NULL, NULL),
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,                  "STATE: CONNECT OK",           NULL, 2, 250,  0, 1, NULL, NULL),
-    ATL_ITEM("AT+CIPSEND?"ATL_CMD_CRLF,                           "+CIPSEND:", "+CIPSEND: %u", 2, 150,  0, 1, NULL, NULL, &atl_mdl_gprs_send_len),         
-    ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0",           NULL, 1, 150,  0, 1, NULL, NULL),
-    ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL,           NULL, 2, 150,  0, 0, NULL, NULL),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP STATUS|STATE: TCP CLOSED", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cipstart,                           "CONNECT OK|ALREADY CONNECT", ATL_PARCE_SIMCOM,  6, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,                  "STATE: CONNECT OK", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSEND?"ATL_CMD_CRLF,                           "+CIPSEND:", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),         
+    ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0", ATL_PARCE_SIMCOM,  1, 100,  1, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL, ATL_PARCE_SIMCOM, 10, 100,  0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -287,33 +290,38 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
 chain_step_t tcp_steps[] = 
 {   
   //Main
-  ATL_CHAIN("GPRS INIT", "NEXT", "GPRS DEINIT", atl_mdl_gprs_init, NULL, NULL, NULL, 3),
-  ATL_CHAIN("SOCKET CONFIG", "NEXT", "GPRS INIT", atl_mdl_gprs_socket_config, NULL, NULL, NULL, 3),
-  ATL_CHAIN("CONNECT TO SERVER", "NEXT", "SOCKET CONFIG", atl_mdl_gprs_socket_connect, NULL, &tcp_test, NULL, 3),
+  ATL_CHAIN("INIT_MODEM", "NEXT", "MODEM_RESTART", atl_mdl_modem_init, NULL, NULL, NULL),
+  ATL_CHAIN("GPRS INIT", "NEXT", "GPRS DEINIT", atl_mdl_gprs_init, NULL, NULL, NULL, 1),
+  ATL_CHAIN("SOCKET CONFIG", "NEXT", "GPRS INIT", atl_mdl_gprs_socket_config, NULL, NULL, NULL, 1),
+  ATL_CHAIN("CONNECT TO SERVER", "NEXT", "SOCKET CONFIG", atl_mdl_gprs_socket_connect, NULL, &atl_server_connect, NULL, 1),
+  ATL_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_rtd, atl_rtd_cb, NULL, NULL, 1),
+  ATL_CHAIN_EXEC("CHECK RTD", "NEXT", "GET RTD", atl_rtd_check),
+  ATL_CHAIN_EXEC("CREATE WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_login),
+  ATL_CHAIN("SEND WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, atl_server_data_cb, &atl_server_data, NULL, 3),
   
   ATL_CHAIN_LOOP_START(0),
-    ATL_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_rtd, rtd_test_cb, NULL, NULL, 3),
-    ATL_CHAIN_EXEC("CREATE WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", rtd_cond_test),
-    ATL_CHAIN("SEND WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, NULL, &tcp_test, NULL, 3),
+    ATL_CHAIN_EXEC("CREATE WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_packet),
+    ATL_CHAIN("SEND WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, atl_server_data_cb, &atl_server_data, NULL, 3),
+    ATL_CHAIN_DELAY(1000),
   ATL_CHAIN_LOOP_END,
   
   //Error
-  ATL_CHAIN("GPRS DEINIT", "GPRS INIT", "MODEM RESTART", atl_mdl_gprs_init, NULL, NULL, NULL, 3),
-  ATL_CHAIN("DISCONNECT FROM SERVER", "CONNECT TO SERVER", "GPRS DEINIT", atl_mdl_gprs_socket_connect, NULL, &tcp_test, NULL, 3),
-  ATL_CHAIN("MODEM RESTART", "GPRS INIT", "STOP", atl_mdl_modem_reset, NULL, NULL, NULL, 3),
-
+  ATL_CHAIN("GPRS DEINIT", "GPRS INIT", "MODEM RESTART", atl_mdl_gprs_deinit, NULL, NULL, NULL, 1),
+  ATL_CHAIN("DISCONNECT FROM SERVER", "CONNECT TO SERVER", "GPRS DEINIT", atl_mdl_gprs_socket_disconnect, NULL, NULL, NULL, 1),
+  ATL_CHAIN("MODEM RESTART", "GPRS INIT", "STOP", atl_mdl_modem_reset, NULL, NULL, NULL, 1),
 };
 
-atl_chain_t* chain = atl_chain_create("TCP", server_steps, sizeof(server_steps)/sizeof(chain_step_t));
+atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t));
 atl_chain_start(chain);
+
 while(atl_chain_is_running(chain))
 {
   bool res = atl_chain_run(chain);
-  if(atl_chain_is_running(chain))atl_chain_destroy(chain);
+  if(atl_chain_is_running(chain)) atl_chain_destroy(chain);
 }
 ```
 
-Данная цепочка единоразово настраивает simcom модем, контекст и соединение а затем бесконечно начинает собирать и слать данные на сервер с периодом, в случае возникновения ошибки происходит отключение или деинициализация с попыткой повторной инициализации сервера.
+Данная цепочка единоразово настраивает simcom модем, контекст и соединение, получает данные реального времени, проверяет их, а затем бесконечно начинает собирать и слать данные на сервер с периодом в 10 сек, в случае возникновения ошибки происходит отключение или деинициализация с попыткой повторной реинициализации и подключения.
 
 ### Параметры цепочки
 
@@ -324,7 +332,7 @@ while(atl_chain_is_running(chain))
 - **[Success target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага. "STOP" закончит выполнение цепочки.
 - **[Error target]** - тоже самое что и при успехе только в случае ошибки. 
 - **[Func]** - та самая функция которая будет вызвана для исполнения шага. 
-- **[Cb]** - Коллбек на шаг 
+- **[Cb]** - Коллбек на шаг.
 - **[Param]** - те самые параметры которые будут переданы в указанную функцию когда она начнет исполнятся
 - **[Ctx]** - тот самый коллбек который будет передан в функцию.
 - **[Retries]** - количество повторов в случае ошибки 
@@ -355,4 +363,4 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
 
 ### Особенности
 
-- Как можно видеть из примера можно создавать вложенные циклы, библиотека реализует и использует собственный динамический стек для работы с ними. Есть поддержка и возможность переходов через циклы, из циклов, в циклы с вложенностью и без, переходить как вперед так и назад, пропуская их обозночающие шаги, ограничений нет, однако, стоит учитывать что одна итерация цикла происходит только в моменте выполнения ATL_CHAIN_LOOP_END для соответствующего цикла. Также нужно следить за отсутствием шагов с одинаковыми именами, в таком случае переход на такой шаг будет выполнен для первого найденного в массиве.
+- Как можно видеть из примера можно создавать вложенные циклы, библиотека реализует и использует собственный динамический стек для работы с ними. Есть поддержка и возможность переходов через циклы, из циклов, в циклы с вложенностью и без, переходить как вперед так и назад, пропуская их обозначающие шаги, ограничений нет, однако, стоит учитывать что одна итерация цикла происходит только в моменте выполнения ATL_CHAIN_LOOP_END для соответствующего цикла. Также нужно следить за отсутствием шагов с одинаковыми именами, в таком случае переход на такой шаг будет выполнен для первого найденного в массиве.

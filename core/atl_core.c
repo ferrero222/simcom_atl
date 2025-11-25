@@ -19,7 +19,6 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE")
 
-#warning "TODO: EXEC; CHAIN выход из циклов в ошибки; одинаковые имена проверка; итерация цикла происходит только в end"
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
@@ -28,13 +27,18 @@ DBC_MODULE_NAME("ATL_CORE")
  * Local function prototypes ('static')
  ******************************************************************************/
 static void atl_parcer_process_urcs(const ringslice_t* me);
-static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req);
-static void atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
-static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data);
-static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
-                                const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity);
-static int atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern);
-static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item);
+
+static bool atl_raw_parcer(const ringslice_t rs_me, const atl_item_t* const item, const atl_entity_t* const entity);
+
+static bool atl_simcom_parcer(const ringslice_t rs_me, const atl_item_t* const item, const atl_entity_t* const entity);
+static void atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req);
+static void atl_simcom_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
+static void atl_simcom_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data);
+static bool atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+                                        const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity);
+
+static bool atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern);
+static bool atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item);
 
 /*******************************************************************************
  * Local types definitions
@@ -53,58 +57,47 @@ static uint32_t atl_time = 0;
  ******************************************************************************/
 /*******************************************************************************
  ** @brief  Function to parce the RX ring buffer for proc with existing entities in queue.
- **         Should be called each time when the new data comes to RX ring buffer.
+ **         Using choosen parcer for item.
  ** @param  entity  current proc entity
  ** @param  item    current proc item
- ** @return 1 - success parce
- **         0 - failure parce and handle / or no data in buff
- **        -1 - ERROR result code in answer for this cmd
+ ** @return true  - success parce
+ **         false - failure parce and handle / or no data in buff
  ******************************************************************************/
-static int atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item)
+static bool atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item, const ringslice_t rs_me)
 {
   DBC_REQUIRE(101, atl_init_struct.init);
   DBC_REQUIRE(102, item);
   DBC_REQUIRE(103, entity);
 
-  int res = 0;
-  ringslice_t rs_me = {0};
-  ringslice_t rs_req = {0};
-  ringslice_t rs_res = {0}; 
-  ringslice_t rs_data = {0};
+  bool res = false;
   
-  if(item->answ.prefix && strncmp(item->answ.prefix, ATL_CMD_FORCE, strlen(ATL_CMD_FORCE)) == 0) 
-  {
-    ATL_CRITICAL_ENTER
-    atl_init_struct.rx_buff->tail = atl_init_struct.rx_buff->head;
-    atl_init_struct.rx_buff->count = 0;
-    ATL_CRITICAL_EXIT
-    return 1;
-  }
+  if(item->answ.prefix && strncmp(item->answ.prefix, ATL_CMD_FORCE, strlen(ATL_CMD_FORCE)) == 0) res = true;
 
-  ATL_CRITICAL_ENTER
-  rs_me = ringslice_initializer(atl_init_struct.rx_buff->buffer, atl_init_struct.rx_buff->size, atl_init_struct.rx_buff->tail, atl_init_struct.rx_buff->head);
-  ATL_CRITICAL_EXIT
+  if(ringslice_is_empty(&rs_me)) return 0; // no data
 
-  if(ringslice_is_empty(&rs_me)) return 0;
-   
   atl_parcer_process_urcs(&rs_me); // Process URCs first
 
-  atl_parcer_find_rs_req(&rs_me, &rs_req, item->req); // Find request and response in buffer
-  atl_parcer_find_rs_res(&rs_me, &rs_req, &rs_res);
-  atl_parcer_find_rs_data(&rs_me, &rs_req, &rs_res, &rs_data); // Extract data section
-
-  res = atl_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, item, entity); // Proc data
+  if(!res)
+  {
+    switch(item->parce_type)
+    {
+      case ATL_PARCE_SIMCOM: res = atl_simcom_parcer(rs_me, item, entity); break;
+      case ATL_PARCE_RAW:    res = atl_raw_parcer(rs_me, item, entity);    break;
+      default: break;
+    }
+  }
 
   #ifndef ATL_TEST
   if(res > 0) atl_printf_from_ring(rs_me, "[RX]");
   #endif
-
   return res;
 }
 
-/** 
- * @brief Find and proc URC 
- */
+/*******************************************************************************
+ ** @brief  Find and proc standart URC 
+ ** @param  me  slice of origin buffer
+ ** @return None
+ ******************************************************************************/
 static void atl_parcer_process_urcs(const ringslice_t* me)
 {
   DBC_REQUIRE(105, me); 
@@ -123,13 +116,77 @@ static void atl_parcer_process_urcs(const ringslice_t* me)
   }
 }
 
-/** 
- * @brief Find request ring slice 
- */
-static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* req)
+/*******************************************************************************
+ ** @brief  Implementations for raw data parcer kind of: > RAW DATA
+ ** @param  rs_me  slice of origin buffer
+ ** @param  entity  current proc entity
+ ** @param  item    current proc item
+ ** @return true - success parce
+ **         false - failure parce and handle / or no data in buff
+ ******************************************************************************/
+static bool atl_raw_parcer(const ringslice_t rs_me, const atl_item_t* const item, const atl_entity_t* const entity)
 {
-  DBC_REQUIRE(106, me); 
-  DBC_REQUIRE(107, rs_req); 
+  DBC_REQUIRE(118, item);
+  DBC_REQUIRE(119, entity);
+  
+  int res = true;  
+
+  ringslice_cnt_t proced_data = 0;
+  ringslice_t rs_data = rs_me;
+  
+  if(item->answ.prefix)
+  {
+    char* prefix = strncmp(item->answ.prefix, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) ? item->answ.prefix : item->answ.prefix +strlen(ATL_CMD_SAVE);
+    res = atl_string_boolean_ops(&rs_data, prefix);
+    if(item->answ.format) res = atl_cmd_sscanf(&rs_data, item);
+    if(res) proced_data = (uint16_t)rs_data.last;
+  }
+
+  #ifndef ATL_TEST
+  if(proced_data)
+  {
+    atl_init_struct.rx_buff->tail = proced_data;
+    ringslice_t tmp = ringslice_initializer(rs_me.buf, rs_me.buf_size, rs_me.first, proced_data);
+    atl_init_struct.rx_buff->count -= ringslice_len(&tmp);
+  }
+  #endif
+  if(item->answ.cb) item->answ.cb(ringslice_initializer(rs_me.buf, rs_me.buf_size, rs_data.first, rs_me.last), res, entity->data);
+  return res; 
+}
+
+/*******************************************************************************
+ ** @brief  Implementations for raw data parcer kind of: ECHO\r\r\nRES\r\nDATA\r\n
+ ** @param  rs_me  slice of origin buffer
+ ** @param  entity  current proc entity
+ ** @param  item    current proc item
+ ** @return true - success parce
+ **         false - failure parce and handle / or no data in buff
+ ******************************************************************************/
+static bool atl_simcom_parcer(const ringslice_t rs_me, const atl_item_t* const item, const atl_entity_t* const entity)
+{
+  DBC_REQUIRE(121, item);
+  DBC_REQUIRE(122, entity);
+
+  bool res = false;
+
+  ringslice_t rs_req = {0};
+  ringslice_t rs_res = {0}; 
+  ringslice_t rs_data = {0};
+
+  atl_simcom_parcer_find_rs_req(&rs_me, &rs_req, item->req); // Find request and response in buffer
+  atl_simcom_parcer_find_rs_res(&rs_me, &rs_req, &rs_res);
+  atl_simcom_parcer_find_rs_data(&rs_me, &rs_req, &rs_res, &rs_data); // Extract data section
+  res = atl_simcom_parcer_post_proc(&rs_me, &rs_req, &rs_res, &rs_data, item, entity); // Proc data
+  return res;
+}
+
+/** 
+ * @brief Find req echo
+ */
+static void atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* req)
+{
+  DBC_REQUIRE(125, me); 
+  DBC_REQUIRE(127, rs_req); 
 
   if(!req) return;
 
@@ -141,10 +198,10 @@ static void atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* con
 /** 
  * @brief Find result ring slice 
  */
-static void atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res)
+static void atl_simcom_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res)
 {
-  DBC_REQUIRE(108, rs_req); 
-  DBC_REQUIRE(109, rs_res); 
+  DBC_REQUIRE(129, rs_req); 
+  DBC_REQUIRE(131, rs_res); 
 
   if(ringslice_is_empty(rs_req)) return;
 
@@ -159,12 +216,12 @@ static void atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_
 /** 
  * @brief Find and data ring slice 
  */
-static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data)
+static void atl_simcom_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data)
 {
-  DBC_REQUIRE(110, me); 
-  DBC_REQUIRE(111, rs_req);  
-  DBC_REQUIRE(112, rs_res); 
-  DBC_REQUIRE(113, rs_data);
+  DBC_REQUIRE(134, me); 
+  DBC_REQUIRE(135, rs_req);  
+  DBC_REQUIRE(136, rs_res); 
+  DBC_REQUIRE(137, rs_data);
 
   const uint8_t crlf_len = strlen(ATL_CMD_CRLF);
 
@@ -205,19 +262,19 @@ static void atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice
  *        NULL RES  NULL  - unhandle state
  *        NULL RES  DATA  - unhandle state
  *        NULL NULL DATA  - handle state
- * @return -1 answer with ERROR result / 0 - failure / 1 - success
+ * @return  false - failure / true - success
  */
-static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
-                                const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity)
+static bool atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+                                        const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity)
 {
-  DBC_REQUIRE(114, me); 
-  DBC_REQUIRE(115, rs_req);  
-  DBC_REQUIRE(116, rs_res); 
-  DBC_REQUIRE(117, rs_data);
-  DBC_REQUIRE(118, item);
-  DBC_REQUIRE(119, entity);
+  DBC_REQUIRE(140, me); 
+  DBC_REQUIRE(141, rs_req);  
+  DBC_REQUIRE(142, rs_res); 
+  DBC_REQUIRE(143, rs_data);
+  DBC_REQUIRE(144, item);
+  DBC_REQUIRE(145, entity);
   
-  int res = 0;  
+  int res = false;  
 
   bool rs_req_exist  = !ringslice_is_empty(rs_req);
   bool rs_res_exist  = !ringslice_is_empty(rs_res);
@@ -230,17 +287,29 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
 
   switch((rs_req_exist << 2) | (rs_res_exist << 1) | rs_data_exist) // Bitmask: REQ[bit2] RES[bit1] DATA[bit0]
   {
+      case 0x01: //0b001 - NULL NULL DATA (PREFIX)
+           if(!prefix) break;
+           res = atl_string_boolean_ops(rs_data, prefix);
+           if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
+           if(res) proced_data = (uint16_t)rs_data->last;
+           break;
+      case 0x05: //0b101 - REQ NULL DATA (REQ +PREFIX)
+           if(!item->req || !prefix) break;
+           res = atl_string_boolean_ops(rs_data, prefix);
+           if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
+           if(res) proced_data = (uint16_t)rs_data->last;
+           break;
       case 0x06: //0b110 - REQ RES NULL (REQ, NO PREFIX, NO FORMAT)
-           if(!item->req || ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = -1;
-           else if(prefix || item->answ.format) res = 0;
-           else res = 1;
-           if(res != 0) proced_data = (uint16_t)rs_res->last;
+           if(!item->req || ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = false;
+           else if(prefix || item->answ.format) res = false;
+           else res = true;
+           if(res) proced_data = (uint16_t)rs_res->last;
            break;
       case 0x07: //0b111 - REQ RES DATA (REQ)
            if(!item->req) break;
-           else if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = -1;
-           else res = 1;
-           if(res > 0){
+           else if(ringslice_strcmp(rs_res, ATL_CMD_ERROR) == 0) res = false;
+           else res = true;
+           if(res){
              if(prefix) res = atl_string_boolean_ops(rs_data, prefix);
              if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
            }
@@ -248,18 +317,6 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
            if(ringslice_is_later_than(rs_res, rs_data)) proced_data = (uint16_t)rs_res->last;
            else                                         proced_data = (uint16_t)rs_data->last;
            #endif
-           break;
-      case 0x01: //0b001 - NULL NULL DATA (PREFIX)
-           if(!prefix) break;
-           res = atl_string_boolean_ops(rs_data, prefix);
-           if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
-           if(res > 0) proced_data = (uint16_t)rs_data->last;
-           break;
-      case 0x05: //0b101 - REQ NULL DATA (REQ +PREFIX)
-           if(!item->req || !prefix) break;
-           res = atl_string_boolean_ops(rs_data, prefix);
-           if(item->answ.format) res = atl_cmd_sscanf(rs_data, item);
-           if(res > 0) proced_data = (uint16_t)rs_data->last;
            break;
       default: 
            break;
@@ -274,27 +331,33 @@ static int atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* 
   #endif
   if(item->answ.cb) 
   {
-    ringslice_t cb_rs_data = rs_data_exist 
-        ? ringslice_initializer(me->buf, me->buf_size, rs_data->first, me->last) 
-        : (ringslice_t){0};
-    item->answ.cb(ringslice_initializer(me->buf, me->buf_size, rs_data->first, me->last), res, entity->data);
+    ringslice_t cb_rs_data = rs_data_exist ? ringslice_initializer(me->buf, me->buf_size, rs_data->first, me->last) : (ringslice_t){0};
+    item->answ.cb(cb_rs_data, res, entity->data);
   }
   return res; 
 }
 
+/*******************************************************************************
+ ** @brief  Function to parce the RX ring buffer for proc with existing entities in queue.
+ **         Should be called each time when the new data comes to RX ring buffer.
+ ** @param  entity  current proc entity
+ ** @param  item    current proc item
+ ** @return true - success parce
+ **         false - failure parce and handle / or no data in buff
+ ******************************************************************************/
 /** 
  * @brief Boolean operation for strings in ATL
- * @return 1 success/0 error
+ * @return true success/false error
  */
-static int atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern)
+static bool atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern)
 {
-  DBC_REQUIRE(120, rs_data); 
-  DBC_REQUIRE(121, pattern);
+  DBC_REQUIRE(150, rs_data); 
+  DBC_REQUIRE(151, pattern);
 
   const char* or_sep = strchr(pattern, '|'); //Find type of boolean operation
   const char* and_sep = strchr(pattern, '&');
   
-  if (or_sep && and_sep) return 0; // Combination in not allowed
+  if (or_sep && and_sep) return false; // Combination in not allowed
   
   const char sep = or_sep ? '|' : (and_sep ? '&' : '\0');
   const int require_all = (sep == '&'); // 1 for AND, 0 for OR
@@ -306,32 +369,32 @@ static int atl_string_boolean_ops(const ringslice_t* const rs_data, const char* 
     ringslice_t match = ringslice_strnstr(rs_data, start, length);
     if(require_all) 
     { 
-      if (ringslice_is_empty(&match)) return 0; //if only one desmatch ->exit
+      if (ringslice_is_empty(&match)) return false; //if only one desmatch ->exit
     } else 
     {
-      if (!ringslice_is_empty(&match)) return 1; //if only one match ->exit
+      if (!ringslice_is_empty(&match)) return true; //if only one match ->exit
     }
     start = end && *end != '\0' ? end + 1 : start + length;
   }
-  return require_all ? 1 : 0;
+  return require_all ? true : false;
 }
 
 /** 
  * @brief SSCANF for ring buffer atl
- * @return num of successfully sscanfed args
+ * @return true success/ false error
  */
-static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item) 
+static bool atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item) 
 {
-  DBC_REQUIRE(122, rs_data); 
-  DBC_REQUIRE(123, item);  
+  DBC_REQUIRE(155, rs_data); 
+  DBC_REQUIRE(156, item);  
   const char *format = item->answ.format;
   void **output_ptrs = item->answ.ptrs;
   
   int param_count = 0;
   while(output_ptrs[param_count] != ATL_NO_ARG) param_count++;
   
-  DBC_ASSERT(124, format);
-  DBC_ASSERT(125, output_ptrs);
+  DBC_ASSERT(157, format);
+  DBC_ASSERT(158, output_ptrs);
   switch (param_count)
   {
     case 1:  return ringslice_scanf(rs_data, format, output_ptrs[0]) == 1;
@@ -340,7 +403,7 @@ static int atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* co
     case 4:  return ringslice_scanf(rs_data, format, output_ptrs[0], output_ptrs[1], output_ptrs[2], output_ptrs[3]) == 4;
     case 5:  return ringslice_scanf(rs_data, format, output_ptrs[0], output_ptrs[1], output_ptrs[2], output_ptrs[3], output_ptrs[4]) == 5;
     case 6:  return ringslice_scanf(rs_data, format, output_ptrs[0], output_ptrs[1], output_ptrs[2], output_ptrs[3], output_ptrs[4], output_ptrs[5]) == 6;
-    default: return 0;
+    default: return false;
   }
 }
 
@@ -376,9 +439,6 @@ void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, atl_ri
   ATL_DEBUG("[ATL][INFO] Memory overhead: %d/%d", o1heapGetDiagnostics(atl_init_struct.heap).allocated, o1heapGetDiagnostics(atl_init_struct.heap).capacity);
   ATL_DEBUG("[ATL][INFO] Entity queue size: %d", ATL_ENTITY_QUEUE_SIZE);
   DBC_ENSURE(209, atl_init_struct.init);
-  #ifndef ATL_TEST
-    atl_mdl_modem_init(NULL, NULL, NULL);
-  #endif
   ATL_CRITICAL_EXIT
 }
 
@@ -654,7 +714,7 @@ void atl_free(void* ptr)
 static void atl_proc_handle_cmd_result(atl_entity_t* const entity, atl_item_t* const item, const bool success) 
 {
   int step = success ? item->meta.ok_step : item->meta.err_step;
-  if (entity->item_id < entity->item_cnt - 1) // not last
+  if(entity->item_id < entity->item_cnt - 1) // not last
   {
     if (step != 0 || (step > 0 && entity->item_id + step < entity->item_cnt) || (step < 0 && entity->item_id + step >= 0)) 
     {
@@ -691,25 +751,26 @@ void atl_core_proc(void)
     return;
   }
   atl_entity_t* entity = &atl_entity_queue.entity[atl_entity_queue.entity_tail];
+  ringslice_t rs_me = ringslice_initializer(atl_init_struct.rx_buff->buffer, atl_init_struct.rx_buff->size, atl_init_struct.rx_buff->tail, atl_init_struct.rx_buff->head);
   ATL_CRITICAL_EXIT //we work with exclusive memory field for this entity bcs of ring buffer
   atl_item_t* item = &entity->item[entity->item_id];
   if(entity->timer) --entity->timer;
   switch(entity->state)
   {
     case ATL_STATE_WRITE:
-         ATL_DEBUG("[ATL][INFO] [TX] %s", item->req);    
          if(item->req)
          {
            ATL_CRITICAL_ENTER
-           if(strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) == 0) atl_init_struct.atl_write((uint8_t*)item->req +strlen(ATL_CMD_SAVE), strlen(item->req+strlen(ATL_CMD_SAVE)));
-           else                                                            atl_init_struct.atl_write((uint8_t*)item->req, strlen(item->req));
+           uint16_t offset = strncmp(item->req, ATL_CMD_SAVE, strlen(ATL_CMD_SAVE)) ? 0 : strlen(ATL_CMD_SAVE);
+           atl_init_struct.atl_write((uint8_t*)item->req +offset, strlen(item->req+offset));
+           ATL_DEBUG("[ATL][INFO] [TX] %s", item->req +offset);    
            ATL_CRITICAL_EXIT
          }         
          entity->timer = item->meta.wait;
          entity->state = ATL_STATE_READ;
          break;
     case ATL_STATE_READ:
-         if(atl_cmd_ring_parcer(entity, item) == 1) 
+         if(atl_cmd_ring_parcer(entity, item, rs_me) == 1) 
          {
            entity->state = ATL_STATE_WRITE;
            ATL_DEBUG("[ATL][INFO] Successful entity cmd %d/%d", entity->item_id+1, entity->item_cnt);
@@ -752,29 +813,29 @@ void _atl_core_proc(void) {
   atl_core_proc();
 }
 
-int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item) { 
-  return atl_cmd_ring_parcer(entity,item);
+int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item, const ringslice_t rs_me) { 
+  return atl_cmd_ring_parcer(entity,item, rs_me);
 }
 
 void _atl_parcer_process_urcs(const ringslice_t* me) { 
   atl_parcer_process_urcs(me); 
 }
 
-void _atl_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req) { 
-  atl_parcer_find_rs_req(me, rs_req, req); 
+void _atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req) { 
+  atl_simcom_parcer_find_rs_req(me, rs_req, req); 
 }
 
-void _atl_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res) { 
-  atl_parcer_find_rs_res(me, rs_req, rs_res); 
+void _atl_simcom_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res) { 
+  atl_simcom_parcer_find_rs_res(me, rs_req, rs_res); 
 }
 
-void _atl_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data) { 
-  atl_parcer_find_rs_data(me, rs_req, rs_res, rs_data); 
+void _atl_simcom_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data) { 
+  atl_simcom_parcer_find_rs_data(me, rs_req, rs_res, rs_data); 
 }
 
-int _atl_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
+int _atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
                           const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity) { 
-  return atl_parcer_post_proc(me, rs_req, rs_res, rs_data, item, entity); 
+  return atl_simcom_parcer_post_proc(me, rs_req, rs_res, rs_data, item, entity); 
 }
 
 int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern) { 

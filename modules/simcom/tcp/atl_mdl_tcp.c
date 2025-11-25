@@ -45,12 +45,12 @@ DBC_MODULE_NAME("ATL_MDL_TCP")
 bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,               "+COPS: 0", 5,  100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+COPS=0"ATL_CMD_CRLF,                    NULL, 5,  100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CREG?"ATL_CMD_CRLF,  "+CREG: 0,1|+CREG: 0,5", 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CGATT?"ATL_CMD_CRLF,             "+CGATT: 1", 30, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,               "+COPS: 0", ATL_PARCE_SIMCOM, 5,  100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+COPS=0"ATL_CMD_CRLF,                    NULL, ATL_PARCE_SIMCOM, 5,  100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CREG?"ATL_CMD_CRLF,  "+CREG: 0,1|+CREG: 0,5", ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CGATT?"ATL_CMD_CRLF,             "+CGATT: 1", ATL_PARCE_SIMCOM, 30, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -67,24 +67,24 @@ bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, void* 
 bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT",  3, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,           ATL_CMD_FORCE, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1",  3, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1",  3, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", ATL_PARCE_SIMCOM,  3, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,           ATL_CMD_FORCE, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -105,14 +105,14 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
   char cipstart[128] = {0}; 
   atl_mdl_tcp_server_t* tcp = (atl_mdl_tcp_server_t*)param;
   snprintf(cipstart, sizeof(cipstart), "%sAT+CIPSTART=\"%s\",\"%s\",\"%s\"%s", ATL_CMD_SAVE, tcp->mode, tcp->ip, tcp->port, ATL_CMD_CRLF); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   { 
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP STATUS|STATE: TCP CLOSED", 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cipstart,                                           "CONNECT OK", 60, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,                  "STATE: CONNECT OK", 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSEND?"ATL_CMD_CRLF,                           "+CIPSEND:", 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),         
-    ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0",  3, 100,  1, 0, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL, 10, 100,  0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP STATUS|STATE: TCP CLOSED", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cipstart,                           "CONNECT OK|ALREADY CONNECT", ATL_PARCE_SIMCOM,  6, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,                  "STATE: CONNECT OK", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSEND?"ATL_CMD_CRLF,                           "+CIPSEND:", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),         
+    ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0", ATL_PARCE_SIMCOM,  1, 100,  1, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL, ATL_PARCE_SIMCOM, 10, 100,  0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -131,6 +131,7 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
 {
   DBC_REQUIRE(201, param);
   DBC_REQUIRE(202, atl_get_init().init);
+  bool res = false;
   atl_mdl_tcp_data_t* tcp = (atl_mdl_tcp_data_t*)param;
   size_t size = strlen(ATL_CMD_SAVE) + strlen(tcp->data) + strlen(ATL_CMD_CTRL_Z) +1; 
   char cipsend[64] = {0}; 
@@ -142,16 +143,16 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
   } 
   snprintf(cipsend, sizeof(cipsend), "%sAT+CIPSEND=%d%s", ATL_CMD_SAVE, (int)(size - strlen(ATL_CMD_SAVE)), ATL_CMD_CRLF); 
   snprintf(datacmd, size, "%s%s%s", ATL_CMD_SAVE, tcp->data, ATL_CMD_CTRL_Z); 
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: CONNECT OK", 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cipsend,                                    ">",  5, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(datacmd,                         "+IPD&SEND OK",  5, 500,  0, 0, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(NULL,                         "+IPD&SEND OK",  5, 500,  0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: CONNECT OK",  ATL_PARCE_SIMCOM, 5, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cipsend,                        "AT+CIPSEND=&>",     ATL_PARCE_RAW, 3, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(datacmd,                              tcp->answ,     ATL_PARCE_RAW, 3, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
   };
+  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) res = false;
+  else res = true;
   atl_free(datacmd);
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
-  return true;
+  return res;
 }
 
 /*******************************************************************************
@@ -165,9 +166,9 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
 bool atl_mdl_gprs_socket_disconnect(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CIPCLOSE=1"ATL_CMD_CRLF, "CLOSE OK", 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPCLOSE=1"ATL_CMD_CRLF, "CLOSE OK", ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -184,9 +185,9 @@ bool atl_mdl_gprs_socket_disconnect(const atl_entity_cb_t cb, const void* const 
 bool atl_mdl_gprs_deinit(const atl_entity_cb_t cb, const void* const param, void* const ctx)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CIPSHUT"ATL_CMD_CRLF, "SHUT OK", 2, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CIPSHUT"ATL_CMD_CRLF, "SHUT OK", ATL_PARCE_SIMCOM, 2, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
