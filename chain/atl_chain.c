@@ -57,7 +57,7 @@ static void atl_chain_step_cb(const bool result, void* const ctx, const void* co
     step->state = result ? ATL_CHAIN_STEP_SUCCESS : ATL_CHAIN_STEP_ERROR;
     step->execution_count++;
     ATL_DEBUG("[ATL][INFO] Step '%s' completed with %s", step->name, result ? "SUCCESS" : "ERROR");
-    step->action.func.cb(result, step->action.func.ctx, data);
+    if(step->action.func.cb) step->action.func.cb(result, step->action.func.ctx, data);
   }
 }
 

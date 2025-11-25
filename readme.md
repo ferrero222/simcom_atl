@@ -208,6 +208,7 @@ void (*atl_entity_cb_t)(bool result, void* ctx, void* data);
 - В папке tests есть make файл который запускает тесты хосте для проверки логики вне зависимсоти от микроконтроллера. Можно запустить его через консоль или отладить через VS code, попробовать добавить свои или посмотреть как происходит процесс выполнения готовых тестов, чтобы понять как что работает.
 - Коллбек на АТ команду получает срез на данные, это сделано для того чтобы можно было написать собственный парсер данных, в случае если стандартного форматирования недостаточно, пример такого можно увидеть в готовой функции atl_mdl_rtd, там структура данных динамически создается библиотекой и в коллбеке на команду мы вручную парсим ее данные нужным способом и кладем их в эту структуру.
 - В случае обработанных данных библиотека сама передвигает tail и counter вашего кольцевого буфера.
+- В папке examples есть примеры использования.
 
 
 ### Парсеры 
@@ -220,7 +221,6 @@ void (*atl_entity_cb_t)(bool result, void* ctx, void* data);
 | [REQ] [PREFIX] <br> [REQ] [PREFIX] [FORMAT] [ARG]| [REQ] [RES] [DATA] + проверка префикса и формата(если указан)<br>[REQ] [DATA] + проверка префикса и формата(если указан)<br>[DATA] + проверка префикса и формата(если указан) |
 | [PREFIX] | [DATA] + проверка префикса |
 | [PREFIX] [FORMAT] [ARG] | [DATA] + проверка префикса и формата |
-|
 
 Поле [DATA] обычно обрамляется символами CRLF — парсер находит границы по ним, удаляет их и работает с "чистыми" данными. Если [DATA] содержит многострочные данные с CRLF, парсер вернёт только ПЕРВУЮ строку.
 Для сложных случаев рекомендуется писать кастомный парсер через коллбек (пример: функция atl_mdl_rtd). Используйте таблицу выше чтобы правильно создать команду, заранее зная тип ответа и какие поля он содержит.
@@ -290,25 +290,32 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
 chain_step_t tcp_steps[] = 
 {   
   //Main
-  ATL_CHAIN("INIT_MODEM", "NEXT", "MODEM_RESTART", atl_mdl_modem_init, NULL, NULL, NULL),
+  ATL_CHAIN("INIT_MODEM", "NEXT", "MODEM_RESTART", atl_mdl_modem_init, NULL, NULL, NULL, 1),
   ATL_CHAIN("GPRS INIT", "NEXT", "GPRS DEINIT", atl_mdl_gprs_init, NULL, NULL, NULL, 1),
   ATL_CHAIN("SOCKET CONFIG", "NEXT", "GPRS INIT", atl_mdl_gprs_socket_config, NULL, NULL, NULL, 1),
   ATL_CHAIN("CONNECT TO SERVER", "NEXT", "SOCKET CONFIG", atl_mdl_gprs_socket_connect, NULL, &atl_server_connect, NULL, 1),
   ATL_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_rtd, atl_rtd_cb, NULL, NULL, 1),
   ATL_CHAIN_EXEC("CHECK RTD", "NEXT", "GET RTD", atl_rtd_check),
-  ATL_CHAIN_EXEC("CREATE WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_login),
-  ATL_CHAIN("SEND WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, atl_server_data_cb, &atl_server_data, NULL, 3),
   
-  ATL_CHAIN_LOOP_START(0),
+  ATL_CHAIN_EXEC("CREATE WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_login),
+  ATL_CHAIN("SEND WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, NULL, &atl_server_data, NULL, 3),
+  
+  ATL_CHAIN_LOOP_START(10),
+    ATL_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_rtd, atl_rtd_cb, NULL, NULL, 1),
     ATL_CHAIN_EXEC("CREATE WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_packet),
-    ATL_CHAIN("SEND WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, atl_server_data_cb, &atl_server_data, NULL, 3),
+    ATL_CHAIN("SEND WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, NULL, &atl_server_data, NULL, 3),
     ATL_CHAIN_DELAY(1000),
   ATL_CHAIN_LOOP_END,
+  
+  ATL_CHAIN_EXEC("WIALON DATA CLEAN", "STOP", "HARD RESET", atl_server_data_clean),
   
   //Error
   ATL_CHAIN("GPRS DEINIT", "GPRS INIT", "MODEM RESTART", atl_mdl_gprs_deinit, NULL, NULL, NULL, 1),
   ATL_CHAIN("DISCONNECT FROM SERVER", "CONNECT TO SERVER", "GPRS DEINIT", atl_mdl_gprs_socket_disconnect, NULL, NULL, NULL, 1),
-  ATL_CHAIN("MODEM RESTART", "GPRS INIT", "STOP", atl_mdl_modem_reset, NULL, NULL, NULL, 1),
+  ATL_CHAIN("MODEM RESTART", "GPRS INIT", "MODEM RESTART", atl_mdl_modem_reset, NULL, NULL, NULL, 1),
+  
+  //Critical
+  ATL_CHAIN_EXEC("HARD RESET", "STOP", "STOP", atl_hard_reset),
 };
 
 atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t));
@@ -321,7 +328,7 @@ while(atl_chain_is_running(chain))
 }
 ```
 
-Данная цепочка единоразово настраивает simcom модем, контекст и соединение, получает данные реального времени, проверяет их, а затем бесконечно начинает собирать и слать данные на сервер с периодом в 10 сек, в случае возникновения ошибки происходит отключение или деинициализация с попыткой повторной реинициализации и подключения.
+Данная цепочка единоразово настраивает simcom модем, контекст и соединение, получает данные реального времени, проверяет их, а затем 10 раз начинает собирать и слать эти данные на сервер с периодом в 10 сек с предварительным прохождением авторизации, в случае возникновения ошибки происходит отключение или деинициализация с попыткой повторной реинициализации и подключения или полного рестарта.
 
 ### Параметры цепочки
 

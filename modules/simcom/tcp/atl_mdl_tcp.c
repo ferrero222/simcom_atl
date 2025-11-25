@@ -134,14 +134,14 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
   bool res = false;
   atl_mdl_tcp_data_t* tcp = (atl_mdl_tcp_data_t*)param;
   size_t size = strlen(ATL_CMD_SAVE) + strlen(tcp->data) + strlen(ATL_CMD_CTRL_Z) +1; 
-  char cipsend[64] = {0}; 
+  char cipsend[32] = {0}; 
   char* datacmd = (char*)atl_malloc(size);
   if(!datacmd) 
-  {
+  { 
     atl_deinit(); 
     return false; 
   } 
-  snprintf(cipsend, sizeof(cipsend), "%sAT+CIPSEND=%d%s", ATL_CMD_SAVE, (int)(size - strlen(ATL_CMD_SAVE)), ATL_CMD_CRLF); 
+  snprintf(cipsend, sizeof(cipsend), "%sAT+CIPSEND=%d%s", ATL_CMD_SAVE, (int)(size - strlen(ATL_CMD_SAVE) -1), ATL_CMD_CRLF); 
   snprintf(datacmd, size, "%s%s%s", ATL_CMD_SAVE, tcp->data, ATL_CMD_CTRL_Z); 
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
