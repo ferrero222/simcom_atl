@@ -18,7 +18,23 @@
 #include <assert.h>
 #include "o1heap.h"
 #include "ringslice.h"
-#include "atl_port.h"
+
+/*******************************************************************************
+ * Config
+ ******************************************************************************/
+#define ATL_MAX_ITEMS_PER_ENTITY   50     //Max amount of AT cmds in one group (if you need to change, check step field sizes also)
+  
+#define ATL_ENTITY_QUEUE_SIZE      10     //Max amount of groups 
+  
+#define ATL_URC_QUEUE_SIZE         10     //Amount of handled URC
+
+#define ATL_URC_FREQ_CHECK         10     //Check urc each ATL_URC_FREQ_CHECK*10ms
+
+#define ATL_MEMORY_POOL_SIZE       4096   //Memory pool for custom heap
+
+#ifndef ATL_TEST  
+  #define ATL_DEBUG_ENABLED        1      //Recommend to turn on DEBUG logs
+#endif
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
@@ -106,7 +122,7 @@ typedef uint16_t (*atl_write_t)(uint8_t* buff, //buff where data will be written
                                 uint16_t len); //len of data
 
 typedef void (*atl_entity_cb_t)(const bool result,       //result
-                                void* const ctx,         //passed ctx from @atl_entity_t
+                                void* const meta,        //passed meta from @atl_entity_t
                                 const void* const data); //data ptr from @atl_entity_t
 
 typedef uint8_t atl_proc_states_t;
@@ -139,7 +155,7 @@ typedef struct atl_entity_t{
   uint16_t          timer;      //timer
   atl_entity_cb_t   cb;         //cb for item
   void*             data;       //usefull data from execution
-  void*             ctx;        //user data context
+  void*             meta;       //meta data
   uint16_t          data_size;  //usefull data size
   atl_proc_states_t state;      //state
 } atl_entity_t;
@@ -151,6 +167,14 @@ typedef struct atl_entity_queue_t{
   uint8_t entity_cnt;   //entity counter
 } atl_entity_queue_t;
 
+typedef struct atl_context_t {
+  atl_entity_queue_t entity_queue; //entity queue
+  atl_urc_queue_t urc_queue[ATL_URC_QUEUE_SIZE]; //urc queue
+  atl_init_t init_struct; //init struct
+  uint8_t mem_pool[ATL_MEMORY_POOL_SIZE] __attribute__((aligned(O1HEAP_ALIGNMENT)));
+  uint32_t time;
+} atl_context_t;
+
 /*******************************************************************************
  * Global variable definitions ('extern')
  ******************************************************************************/
@@ -159,103 +183,108 @@ typedef struct atl_entity_queue_t{
  ******************************************************************************/
 /*******************************************************************************
  ** @brief  Init atl lib  
+ ** @param  ctx        core context
  ** @param  atl_printf pointer to user func of printf
  ** @param  atl_write  pointer to user func of write to uart
- ** @param  rx_buff    ptr to RX ring buffer
+ ** @param  rx_buff    struct to ring buffer
  ** @return none
  ******************************************************************************/
-void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, atl_ring_buffer_t* rx_buff);
+void atl_init(atl_context_t* const ctx, const atl_printf_t atl_printf, const atl_write_t atl_write, atl_ring_buffer_t* rx_buff);
 
 /*******************************************************************************
  ** @brief  DeInit atl lib  
- ** @param  atl_printf pointer to user func of printf
- ** @param  atl_write  pointer to user func of write to uart
- ** @return false: some error is ocur true: ok
+ ** @param  ctx core context
+ ** @return none
  ******************************************************************************/
-void atl_deinit(void);
+void atl_deinit(atl_context_t* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to append main queue with new group of at cmds
+ ** @param  ctx          core context
  ** @param  item         ptr to your group of at cmds.
  ** @param  item_amount  amount  of your at cms in group 
  ** @param  cb           ur callback function for the whole group.
  ** @param  data_size    If you`r expecting some usefull data while execution pass here size of them.
  **                      And pass the ptr of this data to VA ARGS of each item with proper format to
  **                      get this data. If no need pass the 0.
- ** @param  ctx          Ptr to some context of execution. Will be called in CB. Can be NULL.
+ ** @param  meta         Ptr to some meta data of execution. Will be called in CB. Can be NULL.
  ** @return true: ok false: error while trying to append
  ******************************************************************************/
-bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const ctx);
+bool atl_entity_enqueue(atl_context_t* const ctx, const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const meta);
 
 /*******************************************************************************
  ** @brief  Clear first entity from the queue 
- ** @param  none
+ ** @param  ctx core context
  ** @return false: some errors; true: ok
  ******************************************************************************/
-bool atl_entity_dequeue(void);
+bool atl_entity_dequeue(atl_context_t* const ctx);
 
 /*******************************************************************************
  ** @brief  Function to append URC queue
+ ** @param  ctx  core context
  ** @param  urc  ptr to your URC.
- ** @return ture/false
+ ** @return true/false
  ******************************************************************************/
-bool atl_urc_enqueue(const atl_urc_queue_t* const urc);
+bool atl_urc_enqueue(atl_context_t* const ctx, const atl_urc_queue_t* const urc);
 
 /*******************************************************************************
  ** @brief  Function to delete URC from queue
- ** @param  urc  ptr to your URC.
- ** @return ture/false
+ ** @param  ctx  core context
+ ** @param  prefix  prefix of your URC.
+ ** @return true/false
  ******************************************************************************/
-bool atl_urc_dequeue(char* prefix);
+bool atl_urc_dequeue(atl_context_t* const ctx, char* prefix);
 
 /*******************************************************************************
  ** @brief  Function to proc ATL core proccesses. 
- ** @param  none
+ ** @param  ctx  core context
  ** @return none
  ******************************************************************************/
-void atl_core_proc(void);
+void atl_core_proc(atl_context_t* const ctx);
 
 /*******************************************************************************
- ** @brief  Function get time in 10ms. Call it each 10ms
- ** @param  none
+ ** @brief  Function get time in 10ms. 
+ ** @param  ctx  core context
+ ** @return time
+ ******************************************************************************/
+uint32_t atl_get_cur_time(atl_context_t* const ctx);
+
+/*******************************************************************************
+ ** @brief  Function get init. 
+ ** @param  ctx  core context
+ ** @return @atl_init_t
+ ******************************************************************************/
+atl_init_t atl_get_init(atl_context_t* const ctx);
+
+/*******************************************************************************
+ ** @brief  Function to custom malloc. Handle the concurrent state
+ ** @param  ctx  core context
+ ** @param  size amount to alloc
+ ** @return ptr to new memory
+ ******************************************************************************/
+void* atl_malloc(atl_context_t* const ctx, size_t size);
+
+/*******************************************************************************
+ ** @brief  Function to custom free. Handle the concurrent state
+ ** @param  ctx  core context
+ ** @param  ptr  ptr to delete
  ** @return none
  ******************************************************************************/
-uint32_t atl_get_cur_time(void);
-
-/*******************************************************************************
- ** @brief  Function get init struct. 
- ** @param  none
- ** @return atl_init_t
- ******************************************************************************/
-atl_init_t atl_get_init(void);
-
-/*******************************************************************************
- ** @brief  Function to custom malloc. 
- ** @param  none
- ** @return none
- ******************************************************************************/
-void* atl_malloc(size_t size);
-
-/*******************************************************************************
- ** @brief  Function to custom free. 
- ** @param  none
- ** @return none
- ******************************************************************************/
-void atl_free(void* ptr);
+void atl_free(atl_context_t* const ctx, void* ptr);
 
 #ifdef ATL_TEST
-void _atl_core_proc(void);
-int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item, const ringslice_t rs_me);
+void _atl_core_proc(atl_context_t* const ctx);
+int _atl_cmd_ring_parcer(atl_context_t* const ctx, const atl_entity_t* const entity, const atl_item_t* const item, const ringslice_t rs_me);
 void _atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req); 
 void _atl_simcom_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
 void _atl_simcom_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data); 
-int _atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
+int _atl_simcom_parcer_post_proc(atl_context_t* const ctx, const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
 int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern); 
 int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item); 
-void _atl_process_urcs(const ringslice_t* me);
-atl_entity_queue_t* _atl_get_entity_queue(void); 
-atl_urc_queue_t* _atl_get_urc_queue(void); 
-atl_init_t _atl_get_init(void);
+void _atl_process_urcs(atl_context_t* const ctx, const ringslice_t* me);
+atl_entity_queue_t* _atl_get_entity_queue(atl_context_t* const ctx); 
+atl_urc_queue_t* _atl_get_urc_queue(atl_context_t* const ctx); 
+atl_init_t _atl_get_init(atl_context_t* const ctx);
 #endif
 
 #endif //__ATL_CORE_H

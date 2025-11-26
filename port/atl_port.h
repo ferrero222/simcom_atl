@@ -18,33 +18,17 @@
 #include <string.h>
 #include <assert.h>
 #include "dbc_assert.h"
-
-/*******************************************************************************
- * Config
- ******************************************************************************/
-#define ATL_MAX_ITEMS_PER_ENTITY   50     //Max amount of AT cmds in one group (if you need to change, check step field sizes also)
-  
-#define ATL_ENTITY_QUEUE_SIZE      10     //Max amount of groups 
-  
-#define ATL_URC_QUEUE_SIZE         10     //Amount of handled URC
-
-#define ATL_URC_FREQ_CHECK         10     //Check urc each ATL_URC_FREQ_CHECK*10ms
-
-#define ATL_MEMORY_POOL_SIZE       4096   //Memory pool for custom heap
-   
-#ifndef ATL_TEST  
-  #define ATL_DEBUG_ENABLED        1      //Recommend to turn on DEBUG logs
-#endif
-
-#if ATL_DEBUG_ENABLED
-  #define ATL_DEBUG(fmt, ...) atl_printf_safe(fmt, __VA_ARGS__)
-#else
-  #define ATL_DEBUG(fmt, ...) ((void)0)
-#endif
+#include "atl_core.h"
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
+#if ATL_DEBUG_ENABLED
+  #define ATL_DEBUG(ctx, fmt, ...) atl_printf_safe(ctx, fmt, __VA_ARGS__)
+#else
+  #define ATL_DEBUG(ctx, fmt, ...) ((void)0)
+#endif
+
 /*******************************************************************************
  * Global type definitions ('typedef')
  ******************************************************************************/
@@ -83,13 +67,13 @@ void _atl_crit_exit(void);
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_printf_safe(const char *fmt, ...);
+void atl_printf_safe(atl_context_t* const ctx, const char *fmt, ...);
 
 /*******************************************************************************
  ** @brief  Printf
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_printf_from_ring(ringslice_t me, char* text);
+void atl_printf_from_ring(atl_context_t* const ctx, ringslice_t rs_me, char* text);
 
 #endif

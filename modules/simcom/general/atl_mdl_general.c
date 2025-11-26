@@ -35,32 +35,34 @@ static void atl_mdl_general_ceng_cb(ringslice_t rs_data, bool result, void* cons
  ******************************************************************************/
 /*******************************************************************************
  ** @brief  Function to restart the modem
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Here is NULL
  ** @param  param  input param if function is required them. Here is
- ** @param  ctx    Context of function execution. Will be passe to the cb by the
+ ** @param  meta   Meta data of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_modem_reset(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_modem_reset(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
     ATL_ITEM("AT+CFUN=1,1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
  ** @brief  Function to init modem
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is NULL
- ** @param  ctx    Context of function execution. Will be passe to the cb by the
+ ** @param  meta   Meta data of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_modem_init(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_modem_init(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
@@ -69,20 +71,21 @@ bool atl_mdl_modem_init(const atl_entity_cb_t cb, const void* const param, void*
     ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, ATL_PARCE_SIMCOM, 5, 100, 0, 1, NULL, NULL, ATL_NO_ARG),  
     ATL_ITEM("ATE1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 5, 100, 0, 0, NULL, NULL, ATL_NO_ARG),  
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
  ** @brief  Function to get real time data info about modem. @atl_mdl_rtd_t
  **         will be passed to the data paramater in callback. Get it there.
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Here is NULL
  ** @param  param  input param if function is required them. Here is NULL
- ** @param  ctx    Context of function execution. Will be passe to the cb by the
+ ** @param  meta   Meta data of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_rtd(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_rtd(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
@@ -97,7 +100,7 @@ bool atl_mdl_rtd(const atl_entity_cb_t cb, const void* const param, void* const 
     ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
     ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, atl_mdl_general_ceng_cb,    NULL, ATL_NO_ARG),                         
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), meta)) return false;
   return true;
 }
 

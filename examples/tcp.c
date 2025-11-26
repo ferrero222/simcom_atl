@@ -26,6 +26,8 @@
 /*******************************************************************************
  * Local variable definitions ('static')
  ******************************************************************************/
+atl_context_t simcom_ctx = {0};
+
 /*******************************************************************************
  * Function implementation - global ('extern') and local ('static')
  ******************************************************************************/
@@ -76,8 +78,8 @@ static atl_mdl_tcp_server_t atl_server_connect = {.mode = "TCP", .ip = "YOUR_IP"
 /* Clean wialon msg cb */
 static bool atl_server_data_clean(void)
 {
-  if(atl_server_data.data) atl_free(atl_server_data.data);
-  if(atl_server_data.answ) atl_free(atl_server_data.answ);
+  if(atl_server_data.data) atl_free(&simcom_ctx, atl_server_data.data);
+  if(atl_server_data.answ) atl_free(&simcom_ctx, atl_server_data.answ);
   atl_server_data.data = 0;
   atl_server_data.answ = 0;
   return true;
@@ -87,8 +89,8 @@ static bool atl_server_data_clean(void)
 static bool atl_server_data_wialon_login(void)
 {
   atl_server_data_clean();
-  atl_server_data.data = atl_malloc(100);
-  atl_server_data.answ = atl_malloc(50);
+  atl_server_data.data = atl_malloc(&simcom_ctx, 100);
+  atl_server_data.answ = atl_malloc(&simcom_ctx, 50);
   if(!atl_server_data.data || !atl_server_data.answ) return false;
   sprintf(atl_server_data.data, "2.0;%.15s;NA;", atl_rtd.modem_imei);
   app_create_wialon_msg("#L#", atl_server_data.data, 100);
@@ -100,8 +102,8 @@ static bool atl_server_data_wialon_login(void)
 static bool atl_server_data_wialon_packet(void)
 {
   atl_server_data_clean();
-  atl_server_data.data = atl_malloc(250);
-  atl_server_data.answ = atl_malloc(50);
+  atl_server_data.data = atl_malloc(&simcom_ctx, 250);
+  atl_server_data.answ = atl_malloc(&simcom_ctx, 50);
   if(!atl_server_data.data || !atl_server_data.answ) return false;
   sprintf(atl_server_data.data, 
           "NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;;NA;imei:3:%s,id:3:%s,rev:3:%s,clock:3:%s,iccid:3:%s,oper:3:%s,rssi:1:%d;",
@@ -155,7 +157,7 @@ atl_chain_t* test_chain_init(void)
     ATL_CHAIN_EXEC("HARD RESET", "STOP", "STOP", atl_hard_reset),
 
   };
-  atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t));
+  atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t), &simcom_ctx);
   atl_chain_start(chain);
   return chain;
 }
@@ -169,7 +171,7 @@ atl_chain_t* test_chain_init(void)
 void main(void)
 {
   atl_boot(); //init hardware, pins, uart, clock and etc.
-  atl_init(my_printf, gsm_proc_send_data, (atl_ring_buffer_t*)&uart_gsm_ctx.rx_buf); //atl lib init
+  atl_init(&simcom_ctx, my_printf, gsm_proc_send_data, (atl_ring_buffer_t*)&uart_gsm_ctx.rx_buf); //atl lib init
   atl_chain_t* chain = test_chain_init(); //create behavior scenario using atl chain
   while(1)
   {

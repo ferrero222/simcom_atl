@@ -56,33 +56,36 @@ typedef struct atl_mdl_rtd_t {
  ******************************************************************************/
 /*******************************************************************************
  ** @brief  Function to restart the modem
- ** @param  cb     cb when proc will be done. Can be NULL
- ** @param  param  input param if function is required them. Here is NULL
- ** @param  ctx    Context of function execution. Will be passe to the cb by the
+ ** @param  ctx    core context
+ ** @param  cb     cb when proc will be done. Here is NULL
+ ** @param  param  input param if function is required them. Here is
+ ** @param  meta   Meta data of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_modem_reset(const atl_entity_cb_t cb, const void* const param, void* const ctx);
+bool atl_mdl_modem_reset(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta);
 
 /*******************************************************************************
  ** @brief  Function to init modem
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is NULL
- ** @param  ctx    Context of function execution. Will be passe to the cb by the
+ ** @param  meta   Meta data of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_modem_init(const atl_entity_cb_t cb, const void* const param, void* const ctx);
+bool atl_mdl_modem_init(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta);
 
 /*******************************************************************************
  ** @brief  Function to get real time data info about modem. @atl_mdl_rtd_t
  **         will be passed to the data paramater in callback. Get it there.
- ** @param  cb     cb when proc will be done. Can be NULL
+ ** @param  ctx    core context
+ ** @param  cb     cb when proc will be done. Here is NULL
  ** @param  param  input param if function is required them. Here is NULL
- ** @param  ctx    Context of function execution. Will be passe to the cb by the
+ ** @param  meta   Meta data of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_rtd(const atl_entity_cb_t cb, const void* const param, void* const ctx);
+bool atl_mdl_rtd(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta);
 
  #endif //__ATL_MDL_GENERAL_H 

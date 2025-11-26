@@ -36,13 +36,14 @@ DBC_MODULE_NAME("ATL_MDL_TCP")
  ******************************************************************************/
 /*******************************************************************************
  ** @brief  Function init GPRS
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is NULL
  ** @param  ctx    Context of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_init(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
@@ -52,19 +53,20 @@ bool atl_mdl_gprs_init(const atl_entity_cb_t cb, const void* const param, void* 
     ATL_ITEM("AT+CREG?"ATL_CMD_CRLF,  "+CREG: 0,1|+CREG: 0,5", ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM("AT+CGATT?"ATL_CMD_CRLF,             "+CGATT: 1", ATL_PARCE_SIMCOM, 30, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
  ** @brief  Function to create and config socket. (SINGLE SOCKET)
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is NULL
  ** @param  ctx    Context of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_socket_config(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
@@ -86,12 +88,13 @@ bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const para
     ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
  ** @brief  Function to connect socket.
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is @atl_mdl_tcp_server_t
  **                Should exist only when this function is executing
@@ -99,7 +102,7 @@ bool atl_mdl_gprs_socket_config(const atl_entity_cb_t cb, const void* const para
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_socket_connect(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   DBC_REQUIRE(101, param);
   char cipstart[128] = {0}; 
@@ -114,12 +117,13 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
     ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0", ATL_PARCE_SIMCOM,  1, 100,  1, 0, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL, ATL_PARCE_SIMCOM, 10, 100,  0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
  ** @brief  Function to connect socket.
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is ptr to char* data
  **                Should exist only when this function is executing
@@ -127,18 +131,18 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_socket_send_recieve(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   DBC_REQUIRE(201, param);
-  DBC_REQUIRE(202, atl_get_init().init);
+  DBC_REQUIRE(202, atl_get_init(ctx).init);
   bool res = false;
   atl_mdl_tcp_data_t* tcp = (atl_mdl_tcp_data_t*)param;
   size_t size = strlen(ATL_CMD_SAVE) + strlen(tcp->data) + strlen(ATL_CMD_CTRL_Z) +1; 
   char cipsend[32] = {0}; 
-  char* datacmd = (char*)atl_malloc(size);
+  char* datacmd = (char*)atl_malloc(ctx, size);
   if(!datacmd) 
   { 
-    atl_deinit(); 
+    atl_deinit(ctx); 
     return false; 
   } 
   snprintf(cipsend, sizeof(cipsend), "%sAT+CIPSEND=%d%s", ATL_CMD_SAVE, (int)(size - strlen(ATL_CMD_SAVE) -1), ATL_CMD_CRLF); 
@@ -149,46 +153,48 @@ bool atl_mdl_gprs_socket_send_recieve(const atl_entity_cb_t cb, const void* cons
     ATL_ITEM(cipsend,                        "AT+CIPSEND=&>",     ATL_PARCE_RAW, 3, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM(datacmd,                              tcp->answ,     ATL_PARCE_RAW, 3, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) res = false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) res = false;
   else res = true;
-  atl_free(datacmd);
+  atl_free(ctx, datacmd);
   return res;
 }
 
 /*******************************************************************************
  ** @brief  Function to disconnect from socket
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is NULL
  ** @param  ctx    Context of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_socket_disconnect(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_socket_disconnect(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
     ATL_ITEM("AT+CIPCLOSE=1"ATL_CMD_CRLF, "CLOSE OK", ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
  ** @brief  Function to deinit gprs
+ ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Can be NULL
  ** @param  param  input param if function is required them. Here is NULL
  ** @param  ctx    Context of function execution. Will be passe to the cb by the
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_gprs_deinit(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_deinit(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
     ATL_ITEM("AT+CIPSHUT"ATL_CMD_CRLF, "SHUT OK", ATL_PARCE_SIMCOM, 2, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }

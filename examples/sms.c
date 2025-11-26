@@ -26,6 +26,8 @@ static void atl_sms_read_cb(const bool result, void* const ctx, const void* cons
 /*******************************************************************************
  * Local variable definitions ('static')
  ******************************************************************************/
+atl_context_t simcom_ctx = {0};
+
 /*******************************************************************************
  * Function implementation - global ('extern') and local ('static')
  ******************************************************************************/
@@ -41,7 +43,7 @@ static void atl_sms_urc_cb(const ringslice_t urc_slice)
 {
   atl_mdl_sms_msg_t sms = {0};
   ringslice_scanf(&urc_slice, "+CMTI:%*[^,],%d\x0d", &sms.index);
-  if(0 != sms.index) atl_mdl_sms_read(atl_sms_read_cb, &sms, NULL);
+  if(0 != sms.index) atl_mdl_sms_read(&simcom_ctx, atl_sms_read_cb, &sms, NULL);
 }
 
 /* Send echo sms */
@@ -49,7 +51,7 @@ static void atl_sms_read_cb(const bool result, void* const ctx, const void* cons
 {
   if(!result) return;
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)data;
-  atl_mdl_sms_send_text(NULL, sms, NULL);
+  atl_mdl_sms_send_text(&simcom_ctx, NULL, sms, NULL);
 }
 
 /*******************************************************************************
@@ -60,9 +62,9 @@ static void atl_sms_read_cb(const bool result, void* const ctx, const void* cons
 void main(void)
 {
   atl_boot(); //init hardware, pins, uart, clock and etc.
-  atl_init(my_printf, gsm_proc_send_data, (atl_ring_buffer_t*)&uart_gsm_ctx.rx_buf); //atl lib init
-  atl_mdl_modem_init(NULL, NULL, NULL);
-  atl_urc_enqueue(&test_urc_sms);
+  atl_init(&simcom_ctx, my_printf, gsm_proc_send_data, (atl_ring_buffer_t*)&uart_gsm_ctx.rx_buf); //atl lib init
+  atl_mdl_modem_init(&simcom_ctx, NULL, NULL, NULL);
+  atl_urc_enqueue(&simcom_ctx, &test_urc_sms);
   while(1)
   {
     atl_timers_proc(); //proc programm timers (10ms included inside of it)

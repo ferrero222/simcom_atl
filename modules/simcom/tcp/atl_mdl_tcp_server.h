@@ -51,13 +51,13 @@ typedef struct {
  ** @param  packet_size  Max packet size
  ** @return true if success, false otherwise
  ******************************************************************************/
-bool atl_tcp_stream_ctx_init(atl_tcp_stream_ctx_t* ctx, uint16_t packet_size);
+bool atl_tcp_stream_ctx_init(atl_context_t* const atl_ctx,  atl_tcp_stream_ctx_t* stream_ctx, uint16_t packet_size);
 
 /*******************************************************************************
  ** @brief  Cleanup TCP stream context
  ** @param  ctx          Pointer to context
  ******************************************************************************/
-void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx);
+void atl_tcp_stream_ctx_cleanup(atl_context_t* const atl_ctx, atl_tcp_stream_ctx_t* stream_ctx);
 
 /*******************************************************************************
  ** @brief  Handle TCP stream data
@@ -67,6 +67,6 @@ void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx);
  ** @param  cb           Callback when full packet found
  ** @return true if data processed successfully
  ******************************************************************************/
-bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* data, uint16_t len, atl_stream_data_cb cb);
+bool atl_mld_tcp_server_stream_data_handler(atl_context_t* const atl_ctx,  atl_tcp_stream_ctx_t* stream_ctx, uint8_t* data, uint16_t len, atl_stream_data_cb cb);
 
  #endif //__ATL_MDL_TCP_SERVER_H 

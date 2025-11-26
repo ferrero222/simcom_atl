@@ -4,15 +4,18 @@
 
 ## 1. Особенности и свойства
 
-- **Асинхронность**: Все процессы библиотеки выполняются без единого блокирования системы
-- **Управление командами**: АПИ для создания и отправки групп AT-команд, построения сложных логических цепочек, возможность добавления своего парсера.
-- **Память**: Библиотека после инициализации использует около 2.5кБ оперативной памяти по дефолту, зависит от размера выделенного буфера для пользовательского динамического аллокатора O1heap. [GitHub](https://github.com/pavel-kirienko/o1heap)
+- **Асинхронность**: Отсутствие блокирования и ожидания системы.
+- **Управление командами**: АПИ для создания и отправки групп AT-команд, построения сложных логических цепочек.
+- **Гибкость**: Возможность создания любого типа команды, с различной комбинацией параметров.
+- **Память**: Использование пользовательского динамического аллокатора памяти с поддержкой выравнивания и защитой от фрагментации O1heap. [GitHub](https://github.com/pavel-kirienko/o1heap)
 - **Обработка ошибок**: Design by Contract (DBC) для надежной проверки ошибок.   [GitHub](https://github.com/QuantumLeaps/DBC-for-embedded-C)
 - **Потокобезопасность**: Защита критических секций для многопоточных приложений.
 - **Поддержка URC**: Обработка URC для асинхронных событий.
 - **Тестирование**: Embedded тесты от QLP. [GitHub](https://github.com/QuantumLeaps/Embedded-Test)
 - **Срезы**: Использование кольцевых срезов вместо прямого копирования буфера. [GitHub](https://github.com/ferrero222/ringslice/tree/dev)
-- **Модули**: Набор предлагаемых, расширяемых готовых модулей групповых ат команд под контретные внешние устройства
+- **Модульность**: Набор предлагаемых, расширяемых готовых модулей групповых ат команд под контретные внешние устройства.
+- **Расширяемость**: Возможность адаптирования и внедрения новых парсеров для поддержки любого формата команд.
+- **Контекстность**: Возможность создания одновременно нескольких контекстов библиотеки для параллельной работы сразу с несколькими устройствами.
 
 Протестировано с: SIM868....
 
@@ -31,11 +34,17 @@ typedef struct {
   uint16_t count;     
 } atl_ring_buffer_t;
 ```
+Далее определяем глобально контекст:
 
-Инициализируйте ATL:
+```c
+atl_context_t ctx = {0};
+```
+
+Инициализируем данный контекст:
 
 ```c
 atl_init(
+    &ctx,                     // Контекст
     your_printf_function,     // Пользовательская printf для отладки
     your_write_function,      // Функция записи в интерфейс  
     your_ring_buffer_struct,  // Структура кольцевого буфера
@@ -44,7 +53,7 @@ atl_init(
 
 ### Параметры конфигурации
 
-В папке port, в C файле необходимо описать обработчики критических секций для защиты от параллельного доступа, а также обработчик исключений:
+В файле atl_port.c необходимо описать обработчики критических секций для защиты от параллельного доступа, а также обработчик исключений:
 
 ```c
 DBC_NORETURN void DBC_fault_handler(char const* module, int label) 
@@ -68,23 +77,27 @@ static void atl_crit_exit(void)
 }
 ```
 
-В h файле можно настроить параметры:
+В файле atl_core.h можно настроить параметры:
 
 ```c
-#define ATL_MAX_ITEMS_PER_ENTITY 50     //Max amount of AT cmds in one group
-#define ATL_ENTITY_QUEUE_SIZE    10     //Max amount of groups 
-#define ATL_URC_QUEUE_SIZE       10     //Amount of handled URC
-#define ATL_MEMORY_POOL_SIZE     4096   //Memory pool for custom heap
-#ifndef ATL_TEST
-  #define ATL_DEBUG_ENABLED      1      //Recommend to turn on DEBUG logs
+#define ATL_MAX_ITEMS_PER_ENTITY  50     //Max amount of AT cmds in one group
+#define ATL_ENTITY_QUEUE_SIZE     10     //Max amount of groups 
+#define ATL_URC_QUEUE_SIZE        10     //Amount of handled URC
+#define ATL_MEMORY_POOL_SIZE      4096   //Memory pool for custom heap
+#define ATL_URC_FREQ_CHECK        10     //Check urc each ATL_URC_FREQ_CHECK*10ms
+ 
+#ifndef ATL_TEST 
+  #define ATL_DEBUG_ENABLED       1      //Recommend to turn on DEBUG logs
 #endif
 ```
 
-Основная функция обработки должна вызываться каждые 10ms в системном таймере:
+Основная функция обработки должна вызываться для каждого контекста, каждые 10ms в системном таймере:
 
 ```c
 void timer_10ms_handler(void) {
-  atl_core_proc();
+  atl_core_proc(&ctx1);
+  atl_core_proc(&ctx2);
+  ...
 }
 ```
 
@@ -126,7 +139,7 @@ atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][C
   ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
   ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
 };
-atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx);
+if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
 ```
 
 ### Пример 2, групповые команды с форматированием ответа
@@ -144,7 +157,7 @@ atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][C
   ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
   ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, atl_mdl_general_ceng_cb,    NULL, ATL_NO_ARG),                         
 };
-atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), ctx);
+if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), meta)) return false;
 ```
 
 ### Параметры АТ команды
@@ -166,23 +179,24 @@ atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd
 ### Параметры функции atl_entity_enqueue
 
 ```c
-bool atl_entity_enqueue(const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const ctx);
+bool atl_entity_enqueue(atl_context_t* const ctx, const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const meta)ж
 ```
 
+- **ctx** - глобальный контекст для которого создается группа.
 - **item** - группа АТ команд.
 - **item_amount** - размер структуры команд.
 - **cb** - коллбек на всю группу, который будет вызван по исполнению этой группы. Можно не указывать
 - **data_size** - размер структуры данных которая будет создана динамически, автоматически, для сохранения данных указанных в полях [FORMAT] и [VA_ARGS], указатель на эту структуру вернется в коллбек на группу а после исполнения память для него будет очищена. Может не указываться (0).
-- **ctx** - указатель на некий пользовательский контекст выполнения группы, который будет передан в коллбек выполнения. По сути некие мета-данные группы которые где-то объявлены. Можно не указывать.
+- **meta** - указатель на некоторые дополнительные мета данные группы. Передаются напрямую в коллбек выполнения и никак не обрабатываются библиотекой. Можно не указывать.
 
 ### Параметры коллбека на всю группу команд:
 
 ```c
-void (*atl_entity_cb_t)(bool result, void* ctx, void* data);
+void (*atl_entity_cb_t)(bool result, void* meta, void* data);
 ```
 
 - **result** - результат.
-- **ctx** - тот самый контекст который мы передавали при создании.
+- **meta** - те самые мета данные которые мы передавали при создании.
 - **data** - та самая структура которая была создана динамически так как мы указывали размер, либо NULL если мы ничего не указывали.
 
 ### Параметры коллбека на АТ команду:
@@ -255,7 +269,7 @@ bool (*function)(atl_entity_cb_t cb, void* param, void* ctx);
 Например:
 
 ```c
-bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const param, void* const ctx)
+bool atl_mdl_gprs_socket_connect(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
 {
   DBC_REQUIRE(101, param);
   char cipstart[128] = {0}; 
@@ -270,15 +284,16 @@ bool atl_mdl_gprs_socket_connect(const atl_entity_cb_t cb, const void* const par
     ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0", ATL_PARCE_SIMCOM,  1, 100,  1, 0, NULL, NULL, ATL_NO_ARG),
     ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL, ATL_PARCE_SIMCOM, 10, 100,  0, 0, NULL, NULL, ATL_NO_ARG),
   };
-  if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
+  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 ```
 
 Где:
+- **ctx** - глобальный контекст для которого создается группа.
 - **cb** - коллбек на всю группу
 - **param** - указатель на входящие параметры для создания АТ команды. Нужно следить чтобы предоставляемая структура существовала все время пока аснихронно выполняется эта группа команд
-- **ctx** - контекст который будет передан в коллбек
+- **meta** - указатель на некоторые дополнительные мета данные группы. Передаются напрямую в коллбек выполнения.
 
 Такие функции можно будет использовать в цепочках или отдельно. Наборы уже готовых функций представлены в папке `modules`, можно их использовать и добавлять новые свои.
 
@@ -318,7 +333,7 @@ chain_step_t tcp_steps[] =
   ATL_CHAIN_EXEC("HARD RESET", "STOP", "STOP", atl_hard_reset),
 };
 
-atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t));
+atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t), ctx);
 atl_chain_start(chain);
 
 while(atl_chain_is_running(chain))
@@ -341,7 +356,7 @@ while(atl_chain_is_running(chain))
 - **[Func]** - та самая функция которая будет вызвана для исполнения шага. 
 - **[Cb]** - Коллбек на шаг.
 - **[Param]** - те самые параметры которые будут переданы в указанную функцию когда она начнет исполнятся
-- **[Ctx]** - тот самый коллбек который будет передан в функцию.
+- **[meta]** - те самые мета данные которые мы передавали при создании.
 - **[Retries]** - количество повторов в случае ошибки 
 
 **ATL_CHAIN_EXEC** - макрос для создания и исполнения некоторого действия, можно что то исполнить или проверить. Содержит:

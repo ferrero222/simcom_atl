@@ -28,14 +28,14 @@
  * @param func Function to execute
  * @param retries Maximum retry attempts
  */
-#define ATL_CHAIN(name_, success_target_, error_target_, func_, cb_, param_, ctx_, retries_) \
+#define ATL_CHAIN(name_, success_target_, error_target_, func_, cb_, param_, meta_, retries_) \
 { \
   .type = ATL_CHAIN_STEP_FUNCTION, \
   .name = name_, \
   .action.func.function = func_, \
   .action.func.cb = cb_, \
   .action.func.param = param_, \
-  .action.func.ctx = ctx_, \
+  .action.func.meta = meta_, \
   .action.func.success_target = success_target_, \
   .action.func.error_target = error_target_, \
   .action.func.max_retries = retries_, \
@@ -129,10 +129,10 @@ typedef struct {
   union
   {
     struct {
-      bool (*function)(const atl_entity_cb_t cb, const void* const param, void* const ctx); // Function to execute
+      bool (*function)(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta); // Function to execute
       atl_entity_cb_t cb;          // Callback for function
       void* param;                 // Pass params to function
-      void* ctx;                   // Context for function executing
+      void* meta;                  // meta for function executing
       const char *success_target;  // Target step on success
       const char *error_target;    // Target step on error
       uint8_t max_retries;         // Maximum retry attempts
@@ -162,6 +162,7 @@ typedef struct atl_chain_t {
   uint8_t current_step;               // Current step index
   uint16_t loop_stack_size;           // Maximum loop stack size
   atl_loop_stack_item_t* loop_stack;  // Loop stack for nested loops
+  atl_context_t* ctx;                 // Core context
   bool is_running;                    // Chain execution flag
 } atl_chain_t;
 
@@ -175,14 +176,14 @@ typedef struct atl_chain_t {
  * Global function prototypes (definition in C source)
  ******************************************************************************/
 /*******************************************************************************
- ** @brief Create a new chain with copied steps
+ ** @brief Create a new chain with copied steps (heap allocated)
  ** @param name       Chain name
  ** @param steps      Array of steps (will be copied)
  ** @param step_count Number of steps
- ** @param cb         User callback for chain completion
+ ** @param ctx        core context
  ** @return Pointer to created chain, NULL on error
  *******************************************************************************/
-atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count);
+atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count, atl_context_t* const ctx);
 
 /*******************************************************************************
  ** @brief  Destroy chain and all resources

@@ -17,6 +17,7 @@
 #include "atl_chain.h"
 #include <stdio.h>
 #include <string.h>
+#include "atl_port.h"
 
 /*******************************************************************************
  * Local pre-processor symbols/macros ('#define')
@@ -82,19 +83,19 @@ static bool parse_ipd_header(uint8_t* header_start, uint16_t data_len, int16_t* 
  ** @param  ctx          Stream context
  ** @param  cb           Callback for complete packets
  ******************************************************************************/
-static void process_complete_packet(atl_tcp_stream_ctx_t* ctx, atl_stream_data_cb cb)
+static void process_complete_packet(atl_context_t* const atl_ctx, atl_tcp_stream_ctx_t* stream_ctx, atl_stream_data_cb cb)
 {
-  uint8_t* payload = ctx->buffer + ctx->header_len;
-  uint16_t total_packet_len = ctx->header_len + ctx->expected_len;
-  ATL_DEBUG("[ATL][INFO] Found full TCP stream packet, len: %d", ctx->expected_len);
-  if(cb) cb(payload, ctx->expected_len);
+  uint8_t* payload = stream_ctx->buffer + stream_ctx->header_len;
+  uint16_t total_packet_len = stream_ctx->header_len + stream_ctx->expected_len;
+  ATL_DEBUG(atl_ctx, "[ATL][INFO] Found full TCP stream packet, len: %d", stream_ctx->expected_len);
+  if(cb) cb(payload, stream_ctx->expected_len);
   // Remove processed packet from buffer
-  ctx->data_len -= total_packet_len;
-  if(ctx->data_len > 0) memmove(ctx->buffer, ctx->buffer + total_packet_len, ctx->data_len);
+  stream_ctx->data_len -= total_packet_len;
+  if(stream_ctx->data_len > 0) memmove(stream_ctx->buffer, stream_ctx->buffer + total_packet_len, stream_ctx->data_len);
   // Reset parsing state
-  ctx->expected_len = -1;
-  ctx->header_len = 0;
-  ctx->packet_in_progress = false;
+  stream_ctx->expected_len = -1;
+  stream_ctx->header_len = 0;
+  stream_ctx->packet_in_progress = false;
 }
 
 /*******************************************************************************
@@ -103,20 +104,20 @@ static void process_complete_packet(atl_tcp_stream_ctx_t* ctx, atl_stream_data_c
  ** @param  packet_size  Max packet size
  ** @return true if success, false otherwise
  ******************************************************************************/
-bool atl_tcp_stream_ctx_init(atl_tcp_stream_ctx_t* ctx, uint16_t packet_size)
+bool atl_tcp_stream_ctx_init(atl_context_t* const atl_ctx, atl_tcp_stream_ctx_t* stream_ctx, uint16_t packet_size)
 {
-  DBC_REQUIRE(101, atl_get_init().init);
-  ctx->buffer = (uint8_t*)atl_malloc(packet_size);
-  if (!ctx->buffer) 
+  DBC_REQUIRE(101, atl_get_init(atl_ctx).init);
+  stream_ctx->buffer = (uint8_t*)atl_malloc(atl_ctx, packet_size);
+  if (!stream_ctx->buffer) 
   {
-    ATL_DEBUG("[ATL][ERROR] Failed to allocate stream buffer", NULL);
+    ATL_DEBUG(atl_ctx, "[ATL][ERROR] Failed to allocate stream buffer", NULL);
     return false;
   }
-  ctx->buffer_size = packet_size;
-  ctx->data_len = 0;
-  ctx->expected_len = -1;
-  ctx->header_len = 0;
-  ctx->packet_in_progress = false;
+  stream_ctx->buffer_size = packet_size;
+  stream_ctx->data_len = 0;
+  stream_ctx->expected_len = -1;
+  stream_ctx->header_len = 0;
+  stream_ctx->packet_in_progress = false;
   return true;
 }
 
@@ -124,14 +125,14 @@ bool atl_tcp_stream_ctx_init(atl_tcp_stream_ctx_t* ctx, uint16_t packet_size)
  ** @brief  Cleanup TCP stream context
  ** @param  ctx          Pointer to context
  ******************************************************************************/
-void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx)
+void atl_tcp_stream_ctx_cleanup(atl_context_t* const atl_ctx, atl_tcp_stream_ctx_t* stream_ctx)
 {
-  if (ctx && ctx->buffer) 
+  if (stream_ctx && stream_ctx->buffer) 
   {
-    atl_free(ctx->buffer);
-    ctx->buffer = NULL;
-    ctx->buffer_size = 0;
-    ctx->data_len = 0;
+    atl_free(atl_ctx, stream_ctx->buffer);
+    stream_ctx->buffer = NULL;
+    stream_ctx->buffer_size = 0;
+    stream_ctx->data_len = 0;
   }
 }
 
@@ -143,75 +144,75 @@ void atl_tcp_stream_ctx_cleanup(atl_tcp_stream_ctx_t* ctx)
  ** @param  cb           Callback when full packet found
  ** @return true if data processed successfully
  ******************************************************************************/
-bool atl_mld_tcp_server_stream_data_handler(atl_tcp_stream_ctx_t* ctx, uint8_t* data, uint16_t len, atl_stream_data_cb cb)
+bool atl_mld_tcp_server_stream_data_handler(atl_context_t* const atl_ctx, atl_tcp_stream_ctx_t* stream_ctx, uint8_t* data, uint16_t len, atl_stream_data_cb cb)
 {
   ATL_CRITICAL_ENTER
-  DBC_REQUIRE(201, atl_get_init().init);
-  DBC_REQUIRE(202, ctx != NULL);
-  DBC_REQUIRE(203, ctx->buffer != NULL);
+  DBC_REQUIRE(201, atl_get_init(atl_ctx).init);
+  DBC_REQUIRE(202, stream_ctx != NULL);
+  DBC_REQUIRE(203, stream_ctx->buffer != NULL);
   // Check if new data fits in buffer
-  if (ctx->data_len + len > ctx->buffer_size) 
+  if (stream_ctx->data_len + len > stream_ctx->buffer_size) 
   {
-    ATL_DEBUG("[ATL][INFO] Stream buffer overflow, resetting", NULL);
-    ctx->data_len = 0;
-    ctx->expected_len = -1;
-    ctx->header_len = 0;
-    ctx->packet_in_progress = false;
+    ATL_DEBUG(atl_ctx, "[ATL][INFO] Stream buffer overflow, resetting", NULL);
+    stream_ctx->data_len = 0;
+    stream_ctx->expected_len = -1;
+    stream_ctx->header_len = 0;
+    stream_ctx->packet_in_progress = false;
     ATL_CRITICAL_EXIT
     return false;
   }
   // Append new data to buffer
-  memcpy(ctx->buffer + ctx->data_len, data, len);
-  ctx->data_len += len;
+  memcpy(stream_ctx->buffer + stream_ctx->data_len, data, len);
+  stream_ctx->data_len += len;
   // Process all complete packets in buffer
-  while (ctx->data_len > 0) 
+  while (stream_ctx->data_len > 0) 
   {
-    if (!ctx->packet_in_progress) 
+    if (!stream_ctx->packet_in_progress) 
     {
       // Look for IPD header
-      uint8_t* ipd_start = find_ipd_header(ctx->buffer, ctx->data_len);
+      uint8_t* ipd_start = find_ipd_header(stream_ctx->buffer, stream_ctx->data_len);
       if (!ipd_start) 
       {
         // No header found, keep last few bytes that could be start of header
         const uint16_t keep_bytes = 4;
-        if (ctx->data_len > keep_bytes) 
+        if (stream_ctx->data_len > keep_bytes) 
         {
-          memmove(ctx->buffer, ctx->buffer + ctx->data_len - keep_bytes, keep_bytes);
-          ctx->data_len = keep_bytes;
+          memmove(stream_ctx->buffer, stream_ctx->buffer + stream_ctx->data_len - keep_bytes, keep_bytes);
+          stream_ctx->data_len = keep_bytes;
         }
         break;
       }
       
       // Remove data before header
-      uint16_t header_offset = (uint16_t)(ipd_start - ctx->buffer);
+      uint16_t header_offset = (uint16_t)(ipd_start - stream_ctx->buffer);
       if (header_offset > 0) 
       {
-        memmove(ctx->buffer, ipd_start, ctx->data_len - header_offset);
-        ctx->data_len -= header_offset;
+        memmove(stream_ctx->buffer, ipd_start, stream_ctx->data_len - header_offset);
+        stream_ctx->data_len -= header_offset;
       }
       
       // Parse header
-      if (!parse_ipd_header(ctx->buffer, ctx->data_len, &ctx->expected_len, &ctx->header_len)) 
+      if (!parse_ipd_header(stream_ctx->buffer, stream_ctx->data_len, &stream_ctx->expected_len, &stream_ctx->header_len)) 
       {
         // Invalid header, skip 4 bytes ("+IPD") and continue
-        memmove(ctx->buffer, ctx->buffer + 4, ctx->data_len - 4);
-        ctx->data_len -= 4;
-        ATL_DEBUG("[ATL][INFO] Invalid stream header, skipping", NULL);
+        memmove(stream_ctx->buffer, stream_ctx->buffer + 4, stream_ctx->data_len - 4);
+        stream_ctx->data_len -= 4;
+        ATL_DEBUG(atl_ctx, "[ATL][INFO] Invalid stream header, skipping", NULL);
         continue;
       }
       
-      ctx->packet_in_progress = true;
+      stream_ctx->packet_in_progress = true;
     }
   
     // Check if we have complete packet
-    if (ctx->packet_in_progress && ctx->data_len >= ctx->header_len + ctx->expected_len)
+    if (stream_ctx->packet_in_progress && stream_ctx->data_len >= stream_ctx->header_len + stream_ctx->expected_len)
     {
-        process_complete_packet(ctx, cb);
+        process_complete_packet(atl_ctx, stream_ctx, cb);
     } 
     else 
     {
       // Incomplete packet, wait for more data
-      ATL_DEBUG("[ATL][INFO] Waiting for full stream data", NULL);
+      ATL_DEBUG(atl_ctx, "[ATL][INFO] Waiting for full stream data", NULL);
       break;
     }
   }

@@ -77,9 +77,10 @@ static void atl_crit_exit(void)
  ** @return none
  ******************************************************************************/
 #ifndef ATL_TEST
-void atl_printf_safe(const char *fmt, ...) 
+void atl_printf_safe(atl_context_t* const ctx, const char *fmt, ...) 
 {
-  atl_init_t atl = atl_get_init(); 
+  if(!ctx) return;
+  atl_init_t atl = atl_get_init(ctx); 
   if(!atl.atl_printf) return;
   va_list args;
   va_start(args, fmt);
@@ -156,12 +157,12 @@ void atl_printf_safe(const char *fmt, ...)
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_printf_from_ring(ringslice_t rs_me, char* text)
+void atl_printf_from_ring(atl_context_t* const ctx, ringslice_t rs_me, char* text)
 {
   int data_len = ringslice_len(&rs_me);
   int wrap_len = (rs_me.first + data_len > rs_me.buf_size) ? rs_me.first + data_len - rs_me.buf_size : 0;
   int first_len = data_len - wrap_len;
-  ATL_DEBUG("[ATL][INFO] %s %.*s%.*s", text, first_len, &rs_me.buf[rs_me.first], wrap_len, &rs_me.buf[0]);
+  ATL_DEBUG(ctx, "[ATL][INFO] %s %.*s%.*s", text, first_len, &rs_me.buf[rs_me.first], wrap_len, &rs_me.buf[0]);
 }
 
 #endif
