@@ -1,4 +1,3 @@
-```markdown
 # ATL Documentation
 
 The library offers a constructor and methods for easily creating any single or grouped AT commands, automatically parsing their responses, and creating logical execution chains of grouped commands to implement various scenarios for working with any interacting device.
