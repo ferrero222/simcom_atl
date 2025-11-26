@@ -59,7 +59,7 @@ void testEntityCB(const bool result, void* const ctx, const void* const data)
 
 void testUrcCB(ringslice_t urc_slice)
 {
-  VERIFY(ringslice_strcmp(&urc_slice, "+TEST") == 0);
+  VERIFY(ringslice_strncmp(&urc_slice, "+TEST", strlen("TEST")) == 0);
 }
 
 bool testChainFunc(const atl_entity_cb_t cb, const void* const param, void* const ctx)
@@ -865,7 +865,7 @@ TEST_GROUP("ATL") {
       VERIFY(!_atl_get_init().init);
     }   
 
-  TEST("atl_parcer_process_urcs()") {
+  TEST("atl_process_urcs()") {
       char parce_buffer[2048] = "\r\n+TEST: 523566, text\r\nFFFFFFFFFFF";
       uint16_t parce_buffer_tail = 0;
       uint16_t parce_buffer_head = strlen(parce_buffer);
@@ -881,7 +881,7 @@ TEST_GROUP("ATL") {
       atl_urc_queue_t urc = {"+TEST", testUrcCB};
       atl_urc_enqueue(&urc);
       ringslice_t rs_me   = ringslice_initializer((uint8_t*)parce_buffer, 2048, 0, strlen(parce_buffer));
-      _atl_parcer_process_urcs(&rs_me);
+      _atl_process_urcs(&rs_me);
       atl_deinit();
       VERIFY(!_atl_get_init().init);
     }

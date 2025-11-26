@@ -246,14 +246,13 @@ void atl_free(void* ptr);
 #ifdef ATL_TEST
 void _atl_core_proc(void);
 int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* const item, const ringslice_t rs_me);
-void _atl_parcer_process_urcs(const ringslice_t* me);
 void _atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req); 
 void _atl_simcom_parcer_find_rs_res(const ringslice_t* const me, const ringslice_t* const rs_req, ringslice_t* const rs_res);
 void _atl_simcom_parcer_find_rs_data(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, ringslice_t* const rs_data); 
-int _atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, 
-                          const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
+int _atl_simcom_parcer_post_proc(const ringslice_t* const me, const ringslice_t* const rs_req, const ringslice_t* const rs_res, const ringslice_t* const rs_data, const atl_item_t* const item, const atl_entity_t* const entity); 
 int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const pattern); 
 int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item); 
+void _atl_process_urcs(const ringslice_t* me);
 atl_entity_queue_t* _atl_get_entity_queue(void); 
 atl_urc_queue_t* _atl_get_urc_queue(void); 
 atl_init_t _atl_get_init(void);

@@ -27,7 +27,9 @@
 #define ATL_ENTITY_QUEUE_SIZE      10     //Max amount of groups 
   
 #define ATL_URC_QUEUE_SIZE         10     //Amount of handled URC
-  
+
+#define ATL_URC_FREQ_CHECK         10     //Check urc each ATL_URC_FREQ_CHECK*10ms
+
 #define ATL_MEMORY_POOL_SIZE       4096   //Memory pool for custom heap
    
 #ifndef ATL_TEST  

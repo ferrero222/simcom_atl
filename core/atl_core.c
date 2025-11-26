@@ -19,6 +19,7 @@
  ******************************************************************************/
 DBC_MODULE_NAME("ATL_CORE")
 
+#warning "TODO: Multi atl with context"
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
@@ -26,8 +27,6 @@ DBC_MODULE_NAME("ATL_CORE")
 /*******************************************************************************
  * Local function prototypes ('static')
  ******************************************************************************/
-static void atl_parcer_process_urcs(const ringslice_t* me);
-
 static bool atl_raw_parcer(const ringslice_t rs_me, const atl_item_t* const item, const atl_entity_t* const entity);
 
 static bool atl_simcom_parcer(const ringslice_t rs_me, const atl_item_t* const item, const atl_entity_t* const entity);
@@ -75,8 +74,6 @@ static bool atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item
 
   if(ringslice_is_empty(&rs_me)) return 0; // no data
 
-  atl_parcer_process_urcs(&rs_me); // Process URCs first
-
   if(!res)
   {
     switch(item->parce_type)
@@ -91,29 +88,6 @@ static bool atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item
   if(res > 0) atl_printf_from_ring(rs_me, "[RX]");
   #endif
   return res;
-}
-
-/*******************************************************************************
- ** @brief  Find and proc standart URC 
- ** @param  me  slice of origin buffer
- ** @return None
- ******************************************************************************/
-static void atl_parcer_process_urcs(const ringslice_t* me)
-{
-  DBC_REQUIRE(105, me); 
-
-  for(uint8_t i = 0; i < ATL_URC_QUEUE_SIZE; ++i) 
-  {
-    if(atl_urc_queue[i].prefix)
-    {
-      ringslice_t rs_urc = ringslice_strstr(me, atl_urc_queue[i].prefix);
-      if(!ringslice_is_empty(&rs_urc) && atl_urc_queue[i].cb) 
-      {
-        ATL_DEBUG("[ATL][INFO] Found URC: %s", atl_urc_queue[i].prefix);
-        atl_urc_queue[i].cb(rs_urc);
-      }
-    }
-  }
 }
 
 /*******************************************************************************
@@ -408,6 +382,37 @@ static bool atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* c
 }
 
 /*******************************************************************************
+ ** @brief  Find and proc standart URC 
+ ** @param  me  slice of origin buffer
+ ** @return None
+ ******************************************************************************/
+static void atl_process_urcs(const ringslice_t* me)
+{
+  DBC_REQUIRE(105, me); 
+  
+  if(ringslice_is_empty(me)) return; // no data
+
+  for(uint8_t i = 0; i < ATL_URC_QUEUE_SIZE; ++i) 
+  {
+    if(atl_urc_queue[i].prefix)
+    {
+      ringslice_t rs_urc = ringslice_strstr(me, atl_urc_queue[i].prefix);
+      if(!ringslice_is_empty(&rs_urc) && atl_urc_queue[i].cb) 
+      {
+        #ifndef ATL_TEST
+        atl_init_struct.rx_buff->tail = rs_urc.last;
+        ringslice_t tmp = ringslice_initializer(me->buf, me->buf_size, me->first, rs_urc.last);
+        atl_init_struct.rx_buff->count -= ringslice_len(&tmp);
+        #endif
+        rs_urc = ringslice_initializer(rs_urc.buf, rs_urc.buf_size, rs_urc.first, me->last);
+        ATL_DEBUG("[ATL][INFO] Found URC: %s", atl_urc_queue[i].prefix);
+        atl_urc_queue[i].cb(rs_urc);
+      }
+    }
+  }
+}
+
+/*******************************************************************************
  ** @brief  Init atl lib  
  ** @param  atl_printf pointer to user func of printf
  ** @param  atl_write  pointer to user func of write to uart
@@ -420,11 +425,7 @@ static bool atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* c
 void atl_init(const atl_printf_t atl_printf, const atl_write_t atl_write, atl_ring_buffer_t* rx_buff)
 {
   ATL_CRITICAL_ENTER
-  if(atl_init_struct.init) 
-  {
-    ATL_CRITICAL_EXIT
-    return;
-  }
+  if(atl_init_struct.init) { ATL_CRITICAL_EXIT return; }
   DBC_REQUIRE(202, atl_printf);
   DBC_REQUIRE(203, atl_write);
   DBC_REQUIRE(204, rx_buff);
@@ -678,11 +679,7 @@ uint32_t atl_get_cur_time(void)
 void* atl_malloc(size_t size)
 {
   ATL_CRITICAL_ENTER
-  if(!atl_init_struct.init) 
-  {
-    ATL_CRITICAL_EXIT
-    return NULL;
-  }
+  if(!atl_init_struct.init) { ATL_CRITICAL_EXIT return NULL; }
   void* res = o1heapAllocate(atl_init_struct.heap, size);
   ATL_CRITICAL_EXIT
   return res;
@@ -696,11 +693,7 @@ void* atl_malloc(size_t size)
 void atl_free(void* ptr)
 {
   ATL_CRITICAL_ENTER
-  if(!atl_init_struct.init) 
-  {
-    ATL_CRITICAL_EXIT
-    return;
-  }
+  if(!atl_init_struct.init) { ATL_CRITICAL_EXIT return; }
   o1heapFree(atl_init_struct.heap, ptr);
   ATL_CRITICAL_EXIT
 }
@@ -745,13 +738,10 @@ void atl_core_proc(void)
   ATL_CRITICAL_ENTER
   if(atl_time >= UINT32_MAX) atl_time = 0;
   else atl_time += 1;
-  if(!atl_entity_queue.entity_cnt)
-  {
-    ATL_CRITICAL_EXIT
-    return;
-  }
-  atl_entity_t* entity = &atl_entity_queue.entity[atl_entity_queue.entity_tail];
   ringslice_t rs_me = ringslice_initializer(atl_init_struct.rx_buff->buffer, atl_init_struct.rx_buff->size, atl_init_struct.rx_buff->tail, atl_init_struct.rx_buff->head);
+  if(atl_time % ATL_URC_FREQ_CHECK == 0) atl_process_urcs(&rs_me); //check URC each 100ms
+  if(!atl_entity_queue.entity_cnt) { ATL_CRITICAL_EXIT return; }
+  atl_entity_t* entity = &atl_entity_queue.entity[atl_entity_queue.entity_tail];
   ATL_CRITICAL_EXIT //we work with exclusive memory field for this entity bcs of ring buffer
   atl_item_t* item = &entity->item[entity->item_id];
   if(entity->timer) --entity->timer;
@@ -817,10 +807,6 @@ int _atl_cmd_ring_parcer(const atl_entity_t* const entity, const atl_item_t* con
   return atl_cmd_ring_parcer(entity,item, rs_me);
 }
 
-void _atl_parcer_process_urcs(const ringslice_t* me) { 
-  atl_parcer_process_urcs(me); 
-}
-
 void _atl_simcom_parcer_find_rs_req(const ringslice_t* const me, ringslice_t* const rs_req, const char* const req) { 
   atl_simcom_parcer_find_rs_req(me, rs_req, req); 
 }
@@ -845,6 +831,12 @@ int _atl_string_boolean_ops(const ringslice_t* const rs_data, const char* const 
 int _atl_cmd_sscanf(const ringslice_t* const rs_data, const atl_item_t* const item) {
   return atl_cmd_sscanf(rs_data, item);
 }
+
+void _atl_process_urcs(const ringslice_t* me)
+{
+  atl_process_urcs(me);
+}
+
 
 atl_entity_queue_t* _atl_get_entity_queue(void) {
   return &atl_entity_queue;

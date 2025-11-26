@@ -1,0 +1,311 @@
+[ATL][INFO] ATL library initialized successfully
+[ATL][INFO] Memory pool size: 4096 bytes
+[ATL][INFO] Memory overhead: 0/3936
+[ATL][INFO] Entity queue size: 10
+[ATL][INFO] Created chain 'TCP' with 19 steps, loop stack: 3, memory used: 1152/3936
+[ATL][INFO] Chain 'TCP' started
+[ATL][INFO] Starting step 'INIT_MODEM'
+[ATL][INFO] Enqueueing entity with 3 items
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 1280/3936. User data at 0. 
+[ATL][INFO] [TX] AT\r\n
+[ATL][INFO] [RX] AT\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 1/3
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT\r\n
+[ATL][INFO] [RX] AT\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 2/3
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] ATE1\r\n
+[ATL][INFO] [RX] ATE1\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 3/3
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'INIT_MODEM' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 3 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1152/3936
+[ATL][INFO] Starting step 'GPRS INIT'
+[ATL][INFO] Enqueueing entity with 4 items
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 1408/3936. User data at 0. 
+[ATL][INFO] [TX] AT+COPS?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 4
+[ATL][INFO] [TX] AT+COPS?\r\n
+[ATL][INFO] [RX] \r\nRDY\r\n\r\n+CFUN: 1\r\nAT+COPS?\r\r\n+COPS: 0\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 1/4
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 29
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 28
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 27
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 26
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 25
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 24
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 23
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 22
+[ATL][INFO] [TX] AT+CREG?\r\n
+[ATL][INFO] [RX] AT+CREG?\r\r\n+CREG: 0,1\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 3/4
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CGATT?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 29
+[ATL][INFO] [TX] AT+CGATT?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 28
+[ATL][INFO] [TX] AT+CGATT?\r\n
+[ATL][INFO] [RX] AT+CGATT?\r\r\n+CGATT: 1\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 4/4
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'GPRS INIT' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 4 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1152/3936
+[ATL][INFO] Starting step 'SOCKET CONFIG'
+[ATL][INFO] Enqueueing entity with 16 items
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 2176/3936. User data at 0. 
+[ATL][INFO] [TX] AT+CIPMODE?\r\n
+[ATL][INFO] [RX] AT+CIPMODE?\r\r\n+CIPMODE: 0\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 1/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPMUX?\r\n
+[ATL][INFO] [RX] AT+CIPMUX?\r\r\n+CIPMUX: 0\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 3/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 0
+[ATL][INFO] Failure entity cmd 5/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CSTT="","",""\r\n
+[ATL][INFO] [RX] AT+CSTT="","",""\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 6/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 0
+[ATL][INFO] Failure entity cmd 7/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIICR\r\n
+[ATL][INFO] [RX] AT+CIICR\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 8/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] [RX] AT+CIPSTATUS\r\r\nOK\r\n\r\nSTATE: IP GPRSACT\r\n
+[ATL][INFO] Successful entity cmd 9/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIFSR\r\n
+[ATL][INFO] [RX] \r\nAT+CIFSR\r\r\n10.144.82.38\r\n
+[ATL][INFO] Successful entity cmd 10/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPHEAD?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 0
+[ATL][INFO] Failure entity cmd 11/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPHEAD=1\r\n
+[ATL][INFO] [RX] AT+CIPHEAD=1\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 12/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSRIP?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 0
+[ATL][INFO] Failure entity cmd 13/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSRIP=1\r\n
+[ATL][INFO] [RX] AT+CIPSRIP=1\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 14/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSHOWTP?\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] Timeout, retries left: 0
+[ATL][INFO] Failure entity cmd 15/16
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSHOWTP=1\r\n
+[ATL][INFO] [RX] AT+CIPSHOWTP=1\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 16/16
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'SOCKET CONFIG' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 16 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1152/3936
+[ATL][INFO] Starting step 'CONNECT TO SERVER'
+[ATL][INFO] Enqueueing entity with 6 items
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 1472/3936. User data at 0. 
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] [RX] AT+CIPSTATUS\r\r\nOK\r\n\r\nSTATE: IP STATUS\r\n
+[ATL][INFO] Successful entity cmd 1/6
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSTART="TCP","YOUR","YOUR"\r\n
+[ATL][INFO] Waiting......
+[ATL][INFO] [RX] \r\nAT+CIPSTART="TCP","YOUR","YOUR"\r\r\nOK\r\n\r\nCONNECT OK\r\n
+[ATL][INFO] Successful entity cmd 2/6
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] [RX] \r\nAT+CIPSTATUS\r\r\nOK\r\n\r\nSTATE: CONNECT OK\r\n
+[ATL][INFO] Successful entity cmd 3/6
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSEND?\r\n
+[ATL][INFO] [RX] \r\nAT+CIPSEND?\r\r\n+CIPSEND: 1460\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 4/6
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPQSEND?\r\n
+[ATL][INFO] [RX] AT+CIPQSEND?\r\r\n+CIPQSEND: 0\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 5/6
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'CONNECT TO SERVER' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 6 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1152/3936
+[ATL][INFO] Starting step 'GET RTD'
+[ATL][INFO] Enqueueing entity with 9 items
+[ATL][INFO] User data for item[0] VAR_ARGS[0]: offset=0, new=536839904
+[ATL][INFO] User data for item[1] VAR_ARGS[0]: offset=16, new=536839920
+[ATL][INFO] User data for item[2] VAR_ARGS[0]: offset=32, new=536839936
+[ATL][INFO] User data for item[3] VAR_ARGS[0]: offset=62, new=536839966
+[ATL][INFO] User data for item[4] VAR_ARGS[0]: offset=84, new=536839988
+[ATL][INFO] User data for item[5] VAR_ARGS[0]: offset=106, new=536840010
+[ATL][INFO] User data for item[6] VAR_ARGS[0]: offset=156, new=536840060
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 2400/3936. User data at 536839904. 
+[ATL][INFO] [TX] AT+GSN\r\n
+[ATL][INFO] [RX] AT+GSN\r\r\n357713009999993\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 1/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+GMM\r\n
+[ATL][INFO] [RX] AT+GMM\r\r\nSIMCOM_SIM868\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 2/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+GMR\r\n
+[ATL][INFO] [RX] AT+GMR\r\r\nRevision:1418B05SIM868E32_BLE_EAT\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 3/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CCLK?\r\n
+[ATL][INFO] [RX] AT+CCLK?\r\r\n+CCLK: "04/01/01,00:00:19+00"\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 4/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CCID\r\n
+[ATL][INFO] [RX] AT+CCID\r\r\n897010230564462505ff\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 5/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+COPS?\r\n
+[ATL][INFO] [RX] AT+COPS?\r\r\n+COPS: 0,0,"MegaFon"\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 6/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CSQ\r\n
+[ATL][INFO] [RX] AT+CSQ\r\r\n+CSQ: 25,0\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 7/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CENG=3\r\n
+[ATL][INFO] [RX] AT+CENG=3\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 8/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CENG?\r\n
+[ATL][INFO] [RX] AT+CENG?\r\r\n+CENG: 3,0\r\n\r\n+CENG:.............
+[ATL][INFO] Successful entity cmd 9/9
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'GET RTD' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 9 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1152/3936
+[ATL][INFO] Execution 'CHECK RTD': true
+[ATL][INFO] Execution 'CREATE WIALON LOGIN': true
+[ATL][INFO] Starting step 'SEND WIALON LOGIN'
+[ATL][INFO] Enqueueing entity with 3 items
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 1728/3936. User data at 0. 
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] [RX] AT+CIPSTATUS\r\r\nOK\r\n\r\nSTATE: CONNECT OK\r\n
+[ATL][INFO] Successful entity cmd 1/3
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSEND=33\r\n
+[ATL][INFO] [RX] \r\nAT+CIPSEND=33\r\r\n> 
+[ATL][INFO] Successful entity cmd 2/3
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] #L#2.0;357713009999993;NA;3739\r\n\x1A
+[ATL][INFO] [RX] #L#2.0;357713009999993;NA;3739\r\n\x1A\r\nSEND OK\r\n\r\nRECV FROM:YOUR\r\n\r\n+IPD,7,TCP:#AL#1\r\n
+[ATL][INFO] Successful entity cmd 3/3
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'SEND WIALON LOGIN' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 3 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1408/3936
+[ATL][INFO] Loop start, iterations: 0
+[ATL][INFO] Starting step 'GET RTD'
+[ATL][INFO] Enqueueing entity with 9 items
+[ATL][INFO] User data for item[0] VAR_ARGS[0]: offset=0, new=536840160
+[ATL][INFO] User data for item[1] VAR_ARGS[0]: offset=16, new=536840176
+[ATL][INFO] User data for item[2] VAR_ARGS[0]: offset=32, new=536840192
+[ATL][INFO] User data for item[3] VAR_ARGS[0]: offset=62, new=536840222
+[ATL][INFO] User data for item[4] VAR_ARGS[0]: offset=84, new=536840244
+[ATL][INFO] User data for item[5] VAR_ARGS[0]: offset=106, new=536840266
+[ATL][INFO] User data for item[6] VAR_ARGS[0]: offset=156, new=536840316
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 2656/3936. User data at 536840160. 
+[ATL][INFO] [TX] AT+GSN\r\n
+[ATL][INFO] [RX] AT+GSN\r\r\n357713009999993\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 1/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+GMM\r\n
+[ATL][INFO] [RX] AT+GMM\r\r\nSIMCOM_SIM868\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 2/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+GMR\r\n
+[ATL][INFO] [RX] AT+GMR\r\r\nRevision:1418B05SIM868E32_BLE_EAT\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 3/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CCLK?\r\n
+[ATL][INFO] [RX] AT+CCLK?\r\r\n+CCLK: "04/01/01,00:00:21+00"\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 4/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CCID\r\n
+[ATL][INFO] [RX] AT+CCID\r\r\n897010230564462505ff\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 5/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+COPS?\r\n
+[ATL][INFO] [RX] AT+COPS?\r\r\n+COPS: 0,0,"MegaFon"\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 6/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CSQ\r\n
+[ATL][INFO] [RX] AT+CSQ\r\r\n+CSQ: 25,0\r\n\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 7/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CENG=3\r\n
+[ATL][INFO] [RX] \r\n\r\nOK\r\nAT+CENG=3\r\r\nOK\r\n
+[ATL][INFO] Successful entity cmd 8/9
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CENG?\r\n
+[ATL][INFO] [RX] AT+CENG?\r\r\n+CENG: 3,0\r\n\r\n+CENG: ............
+[ATL][INFO] Successful entity cmd 9/9
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'GET RTD' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 9 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1408/3936
+[ATL][INFO] Execution 'CREATE WIALON DATA': true
+[ATL][INFO] Starting step 'SEND WIALON DATA'
+[ATL][INFO] Enqueueing entity with 3 items
+[ATL][INFO] Entity enqueued. Queue count: 1. Memory used: 2496/3936. User data at 0. 
+[ATL][INFO] [TX] AT+CIPSTATUS\r\n
+[ATL][INFO] [RX] AT+CIPSTATUS\r\r\nOK\r\n\r\nSTATE: CONNECT OK\r\n
+[ATL][INFO] Successful entity cmd 1/3
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] AT+CIPSEND=209\r\n
+[ATL][INFO] [RX] \r\nAT+CIPSEND=209\r\r\n> 
+[ATL][INFO] Successful entity cmd 2/3
+[ATL][INFO] Next cmd of entity
+[ATL][INFO] [TX] #D#NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;;NA;imei:3:357713009999993,id:3:SIMCOM_SIM868,rev:3:1418B05SIM868E32_BLE_EAT,clock:3:04/01/01,00:00:21+00,iccid:3:897010230564462505ff,oper:3:MegaFon,rssi:1:25;778A\r\n\x1A
+[ATL][INFO] [RX] #D#NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;NA;;NA;imei:3:357713009999993,id:3:SIMCOM_SIM868,rev:3:1418B05SIM868E32_BLE_EAT,clock:3:04/01/01,00:00:21+00,iccid:3:897010230564462505ff,oper:3:MegaFon,rssi:1:25;778A\r\n\x1A\r\nSEND OK\r\n\r\nRECV FROM:YOUR\r\n\r\n+IPD,15,TCP:#AD#15\r\n#AD#1\r\n
+[ATL][INFO] Successful entity cmd 3/3
+[ATL][INFO] End of entity
+[ATL][INFO] Step 'SEND WIALON DATA' completed with SUCCESS
+[ATL][INFO] Dequeueing entity with 3 items
+[ATL][INFO] Entity dequeued. Queue count: 0. Memory used: 1792/3936
+[ATL][INFO] Chain step delay 1000 ms
+[ATL][INFO] Wait....
+[ATL][INFO] Loop iteration 1
+[ATL][INFO] Starting step 'GET RTD'

@@ -26,6 +26,8 @@ DBC_MODULE_NAME("ATL_MDL_SMS")
 /*******************************************************************************
  * Local function prototypes ('static')
  ******************************************************************************/
+static void atl_mdl_sms_cmgr_cb(ringslice_t rs_data, bool result, void* const data);
+
 /*******************************************************************************
  * Local types definitions
  ******************************************************************************/
@@ -97,13 +99,13 @@ bool atl_mdl_sms_send_text(const atl_entity_cb_t cb, const void* const param, vo
   char text[161] = {0};
   atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)param;
   snprintf(cmgs, sizeof(cmgs), "%sAT+CMGS=\"%s\"%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CRLF); 
-  snprintf(text, sizeof(text), "%s%s%s", ATL_CMD_SAVE, sms->num, ATL_CMD_CTRL_Z); 
+  snprintf(text, sizeof(text), "%s%s%s", ATL_CMD_SAVE, sms->msg, ATL_CMD_CTRL_Z); 
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
     ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CSCS=\"GSM\""ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cmgs,                           ">", ATL_PARCE_RAW,    1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(text,                          NULL, ATL_PARCE_RAW,    2, 500, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM("AT+CSCS=\"GSM\""ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 2, 500, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cmgs,                           ">",    ATL_PARCE_RAW, 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(text,                          NULL,    ATL_PARCE_RAW, 2, 500, 0, 0, NULL, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
@@ -126,12 +128,22 @@ bool atl_mdl_sms_read(const atl_entity_cb_t cb, const void* const param, void* c
   snprintf(cmgr, sizeof(cmgr), "%sAT+CMGR=%d,%d%s", ATL_CMD_SAVE, sms->index, true, ATL_CMD_CRLF);
   atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   { 
-    ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 1, 15, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cmgr, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, NULL, "+CMGR: \"%*[^\"]\",\"%[^\"]\",%*[^\x0d]\x0d\x0a%[^\x0d]", ATL_ARG(atl_mdl_sms_msg_t, num), ATL_ARG(atl_mdl_sms_msg_t, msg)),
-
+    ATL_ITEM("AT+CMGF=1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 1, 150, 0, 1, NULL, NULL, ATL_NO_ARG),
+    ATL_ITEM(cmgr,                    NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, atl_mdl_sms_cmgr_cb, NULL, ATL_NO_ARG),
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_sms_msg_t), ctx)) return false;
   return true;
+}
+
+/**
+ *  @brief cmgr cb
+ */
+static void atl_mdl_sms_cmgr_cb(ringslice_t rs_data, bool result, void* const data)
+{
+  if(!result) return;
+  if(ringslice_is_empty(&rs_data)) return;
+  atl_mdl_sms_msg_t* sms = (atl_mdl_sms_msg_t*)data;
+  ringslice_scanf(&rs_data, "+CMGR: \"%*[^\"]\",\"%[^\"]\",%*[^\x0d]\x0d\x0a%[^\x0d]", sms->num, sms->msg);
 }
 
 /*******************************************************************************
@@ -178,20 +190,6 @@ bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, voi
   };
   if(!atl_entity_enqueue(items, sizeof(items)/sizeof(items[0]), cb, 0, ctx)) return false;
   return true;
-}
-
-/*******************************************************************************
- ** @brief  URC cb example for catch SMS
- ** @param  urc_slice  slice of this urc instance. 
- ** @param  cb         cb when proc will be done. 
- ** @return true - proc started, false - smthg is wrong
- ******************************************************************************/
-void atl_mdl_sms_urc_cb(const ringslice_t urc_slice)
-{
-  uint16_t index = 0;
-  atl_mdl_sms_msg_t sms = {0};
-  ringslice_scanf(&urc_slice, "+CMTI:%*[^,],%d\x0d", &sms.index);
-  if(0 != index) atl_mdl_sms_read(NULL, (void*)&(atl_mdl_sms_msg_t){.index = sms.index}, NULL);
 }
 
 

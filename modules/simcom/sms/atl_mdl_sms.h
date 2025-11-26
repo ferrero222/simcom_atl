@@ -104,12 +104,4 @@ bool atl_mdl_sms_delete(const atl_entity_cb_t cb, const void* const param, void*
  ******************************************************************************/
 bool atl_mdl_sms_indicate(const atl_entity_cb_t cb, const void* const param, void* const ctx);
 
-/*******************************************************************************
- ** @brief  URC cb example for catch SMS
- ** @param  urc_slice  slice of this urc instance. 
- ** @param  cb         cb when proc will be done. 
- ** @return true - proc started, false - smthg is wrong
- ******************************************************************************/
-void atl_mdl_sms_urc_cb(const ringslice_t urc_slice);
-
 #endif // __ATL_MDL_SMS_H
