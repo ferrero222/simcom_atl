@@ -1,25 +1,25 @@
-/*******************************************************************************
- *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
- *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
- *                           ║╚╝║──║║──║║──                                    *
- *                           ║╔╗║──║║──║║──                                    *
- *                           ║║║║──║║──║╚═╗                                    *
- *                           ╚╝╚╝──╚╝──╚══╝                                    *  
+/******************************************************************************
+ *                              _    ____   ____                              *
+ *                   ======    / \  / ___| / ___| ======       (c)03.10.2025  *
+ *                   ======   / _ \ \___ \| |     ======           v1.0.0     *
+ *                   ======  / ___ \ ___) | |___  ======                      *
+ *                   ====== /_/   \_\____/ \____| ======                      *  
+ *                                                                            *
  ******************************************************************************/
 /*******************************************************************************
  * Include files
  ******************************************************************************/
-#include "atl_chain.h"
+#include "asc_chain.h"
 #include "dbc_assert.h"
 #include "o1heap.h"
 #include <stdio.h>
 #include <string.h>
-#include "atl_port.h"
+#include "asc_port.h"
 
 /*******************************************************************************
  * Local pre-processor symbols/macros ('#define')
  ******************************************************************************/
-DBC_MODULE_NAME("ATL_CHAIN")
+DBC_MODULE_NAME("ASC_CHAIN")
 
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
@@ -27,11 +27,11 @@ DBC_MODULE_NAME("ATL_CHAIN")
 /*******************************************************************************
  * Local function prototypes ('static')
  ******************************************************************************/
-static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const step);
-static bool atl_chain_step_exec_proc(atl_chain_t* chain, chain_step_t* const step);
-static bool atl_chain_step_loop_start_proc(atl_chain_t* chain, chain_step_t* const step);
-static bool atl_chain_step_loop_end_proc(atl_chain_t* chain, chain_step_t* const step);
-static bool atl_chain_step_delay_proc(atl_chain_t* chain, chain_step_t* const step);
+static bool asc_chain_step_function_proc(asc_chain_t* chain, chain_step_t* const step);
+static bool asc_chain_step_exec_proc(asc_chain_t* chain, chain_step_t* const step);
+static bool asc_chain_step_loop_start_proc(asc_chain_t* chain, chain_step_t* const step);
+static bool asc_chain_step_loop_end_proc(asc_chain_t* chain, chain_step_t* const step);
+static bool asc_chain_step_delay_proc(asc_chain_t* chain, chain_step_t* const step);
 
 /*******************************************************************************
  * Local types definitions
@@ -48,16 +48,16 @@ static bool atl_chain_step_delay_proc(atl_chain_t* chain, chain_step_t* const st
  ** @param  none
  ** @return none
  ******************************************************************************/
-static void atl_chain_step_cb(const bool result, void* const meta, const void* const data) 
+static void asc_chain_step_cb(const bool result, void* const meta, const void* const data) 
 {
   DBC_REQUIRE(101, meta);
-  const atl_chain_t *chain = (atl_chain_t*)meta;
+  const asc_chain_t *chain = (asc_chain_t*)meta;
   chain_step_t* const step = &chain->steps[chain->current_step];
-  if(step->state == ATL_CHAIN_STEP_RUNNING) 
+  if(step->state == ASC_CHAIN_STEP_RUNNING) 
   {
-    step->state = result ? ATL_CHAIN_STEP_SUCCESS : ATL_CHAIN_STEP_ERROR;
+    step->state = result ? ASC_CHAIN_STEP_SUCCESS : ASC_CHAIN_STEP_ERROR;
     step->execution_count++;
-    ATL_DEBUG(chain->ctx, "[ATL][INFO] Step '%s' completed with %s", step->name, result ? "SUCCESS" : "ERROR");
+    ASC_DEBUG(chain->ctx, "[ASC][INFO] Step '%s' completed with %s", step->name, result ? "SUCCESS" : "ERROR");
     if(step->action.func.cb) step->action.func.cb(result, step->action.func.meta, data);
   }
 }
@@ -68,19 +68,19 @@ static void atl_chain_step_cb(const bool result, void* const meta, const void* c
  ** @param  step_count Number of steps
  ** @return Maximum loop nesting depth
  *******************************************************************************/
-static uint32_t atl_chain_cal_max_loop_depth(const chain_step_t* const steps, const uint32_t step_count) 
+static uint32_t asc_chain_cal_max_loop_depth(const chain_step_t* const steps, const uint32_t step_count) 
 {
   DBC_REQUIRE(201, steps && step_count);
   uint32_t current_depth = 0;
   uint32_t max_depth = 0;
   for(uint32_t i = 0; i < step_count; i++) 
   {
-    if(steps[i].type == ATL_CHAIN_STEP_LOOP_START) 
+    if(steps[i].type == ASC_CHAIN_STEP_LOOP_START) 
     {
       current_depth++;
       if(current_depth > max_depth) max_depth = current_depth;
     } 
-    else if(steps[i].type == ATL_CHAIN_STEP_LOOP_END) 
+    else if(steps[i].type == ASC_CHAIN_STEP_LOOP_END) 
     {
       if(current_depth > 0) current_depth--;
     }
@@ -93,7 +93,7 @@ static uint32_t atl_chain_cal_max_loop_depth(const chain_step_t* const steps, co
  ** @param  none
  ** @retval none
  *******************************************************************************/
-static uint32_t atl_chain_find_step_index_by_name(const atl_chain_t* const chain, const char* const step_name) 
+static uint32_t asc_chain_find_step_index_by_name(const asc_chain_t* const chain, const char* const step_name) 
 {
   DBC_REQUIRE(301, chain);
   DBC_REQUIRE(302, step_name);
@@ -101,11 +101,11 @@ static uint32_t atl_chain_find_step_index_by_name(const atl_chain_t* const chain
   {
     if(chain->steps[i].name && strcmp(chain->steps[i].name, step_name) == 0) 
     {
-      ATL_CRITICAL_EXIT
+      ASC_CRITICAL_EXIT
       return i;
     }
   }
-  ATL_DEBUG(chain->ctx, "[ATL][ERROR] Step '%s' not found!", step_name);
+  ASC_DEBUG(chain->ctx, "[ASC][ERROR] Step '%s' not found!", step_name);
   return UINT32_MAX;
 }
 
@@ -114,7 +114,7 @@ static uint32_t atl_chain_find_step_index_by_name(const atl_chain_t* const chain
  ** @param  none
  ** @retval none
  *******************************************************************************/
-static bool atl_chain_execute_step_prepare(atl_chain_t* const chain, const uint32_t target_index)
+static bool asc_chain_execute_step_prepare(asc_chain_t* const chain, const uint32_t target_index)
 {
   if(target_index != chain->current_step) //check loops
   {
@@ -122,21 +122,21 @@ static bool atl_chain_execute_step_prepare(atl_chain_t* const chain, const uint3
     {
       for(uint32_t i = chain->current_step; i < target_index; i++) 
       {
-        if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)
+        if(chain->steps[i].type == ASC_CHAIN_STEP_LOOP_START)
         {
           if(chain->loop_stack_ptr >= chain->loop_stack_size) return false;
           chain->loop_stack[chain->loop_stack_ptr].start_step_index = i;
           chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
           chain->loop_stack_ptr++;
-          chain->steps[i].state = ATL_CHAIN_STEP_SUCCESS;
+          chain->steps[i].state = ASC_CHAIN_STEP_SUCCESS;
         }
-        else if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_END)
+        else if(chain->steps[i].type == ASC_CHAIN_STEP_LOOP_END)
         {
           if(!chain->loop_stack_ptr) return false;
-          atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
+          asc_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
           chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
           chain->loop_stack_ptr--;
-          loop_start->state = ATL_CHAIN_STEP_IDLE;
+          loop_start->state = ASC_CHAIN_STEP_IDLE;
           current_loop->iteration_count = 0;
         }
       }
@@ -145,27 +145,27 @@ static bool atl_chain_execute_step_prepare(atl_chain_t* const chain, const uint3
     {
       for(uint32_t i = chain->current_step; i > target_index; i--) 
       {
-        if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)
+        if(chain->steps[i].type == ASC_CHAIN_STEP_LOOP_START)
         {
-          if(chain->steps[i].state == ATL_CHAIN_STEP_IDLE) continue;
+          if(chain->steps[i].state == ASC_CHAIN_STEP_IDLE) continue;
           if(!chain->loop_stack_ptr) return false;
-          atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
+          asc_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
           chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
           chain->loop_stack_ptr--;
-          loop_start->state = ATL_CHAIN_STEP_IDLE;
+          loop_start->state = ASC_CHAIN_STEP_IDLE;
           current_loop->iteration_count = 0;
         }
       }
       for(uint32_t i = 0; i < target_index; i++) 
       {
-        if(chain->steps[i].type == ATL_CHAIN_STEP_LOOP_START)
+        if(chain->steps[i].type == ASC_CHAIN_STEP_LOOP_START)
         {
-          if(chain->steps[i].state != ATL_CHAIN_STEP_IDLE) continue;
+          if(chain->steps[i].state != ASC_CHAIN_STEP_IDLE) continue;
           if(chain->loop_stack_ptr >= chain->loop_stack_size) return false;
           chain->loop_stack[chain->loop_stack_ptr].start_step_index = i;
           chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
           chain->loop_stack_ptr++;
-          chain->steps[i].state = ATL_CHAIN_STEP_SUCCESS;
+          chain->steps[i].state = ASC_CHAIN_STEP_SUCCESS;
         }
       }
     } 
@@ -178,7 +178,7 @@ static bool atl_chain_execute_step_prepare(atl_chain_t* const chain, const uint3
  ** @param  none
  ** @retval none
  *******************************************************************************/
-static bool atl_chain_execute_step_jump(atl_chain_t* const chain, const char* const target_name) 
+static bool asc_chain_execute_step_jump(asc_chain_t* const chain, const char* const target_name) 
 {
   if(!target_name || strcmp(target_name, "STOP") == 0) 
   {
@@ -196,10 +196,10 @@ static bool atl_chain_execute_step_jump(atl_chain_t* const chain, const char* co
     return true;
   }
   
-  uint32_t target_index = atl_chain_find_step_index_by_name(chain, target_name);
+  uint32_t target_index = asc_chain_find_step_index_by_name(chain, target_name);
   if(target_index == UINT32_MAX) return false;
     
-  if(!atl_chain_execute_step_prepare(chain, target_index)) return false;
+  if(!asc_chain_execute_step_prepare(chain, target_index)) return false;
 
   chain->current_step = target_index;
   return true;
@@ -210,14 +210,14 @@ static bool atl_chain_execute_step_jump(atl_chain_t* const chain, const char* co
  ** @param  none
  ** @retval none
  *******************************************************************************/
-static void atl_chain_reset_state(atl_chain_t* const chain) 
+static void asc_chain_reset_state(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(401, chain);
   chain->current_step = 0;
   chain->loop_stack_ptr = 0;
   for(uint32_t i = 0; i < chain->step_count; i++) //Reset all steps to initial state
   {
-    chain->steps[i].state = ATL_CHAIN_STEP_IDLE;
+    chain->steps[i].state = ASC_CHAIN_STEP_IDLE;
     chain->steps[i].execution_count = 0;
   }
 }
@@ -227,14 +227,14 @@ static void atl_chain_reset_state(atl_chain_t* const chain)
  ** @param  none
  ** @retval none
  *******************************************************************************/
-static bool atl_chain_process_step(atl_chain_t* const chain) 
+static bool asc_chain_process_step(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(501, chain);
   bool res = true;
   if(chain->current_step >= chain->step_count) // Check if chain completed
   { 
     chain->is_running = false;
-    ATL_DEBUG(chain->ctx, "[ATL][INFO] Chain '%s' completed", chain->name);
+    ASC_DEBUG(chain->ctx, "[ASC][INFO] Chain '%s' completed", chain->name);
     res = false;
     return res;
   }
@@ -242,13 +242,13 @@ static bool atl_chain_process_step(atl_chain_t* const chain)
   DBC_ASSERT(502, step);
   switch(step->type) 
   {
-    case ATL_CHAIN_STEP_FUNCTION:   res = atl_chain_step_function_proc(chain, step);   break;
-    case ATL_CHAIN_STEP_EXEC:       res = atl_chain_step_exec_proc(chain, step);       break;
-    case ATL_CHAIN_STEP_LOOP_START: res = atl_chain_step_loop_start_proc(chain, step); break;
-    case ATL_CHAIN_STEP_LOOP_END:   res = atl_chain_step_loop_end_proc(chain, step);   break;
-    case ATL_CHAIN_STEP_DELAY:      res = atl_chain_step_delay_proc(chain, step);      break;
+    case ASC_CHAIN_STEP_FUNCTION:   res = asc_chain_step_function_proc(chain, step);   break;
+    case ASC_CHAIN_STEP_EXEC:       res = asc_chain_step_exec_proc(chain, step);       break;
+    case ASC_CHAIN_STEP_LOOP_START: res = asc_chain_step_loop_start_proc(chain, step); break;
+    case ASC_CHAIN_STEP_LOOP_END:   res = asc_chain_step_loop_end_proc(chain, step);   break;
+    case ASC_CHAIN_STEP_DELAY:      res = asc_chain_step_delay_proc(chain, step);      break;
     default: 
-      ATL_DEBUG(chain->ctx, "[ATL][ERROR] Unknown step type: %d", step->type);
+      ASC_DEBUG(chain->ctx, "[ASC][ERROR] Unknown step type: %d", step->type);
       chain->is_running = false;
       return false;
   }
@@ -258,43 +258,43 @@ static bool atl_chain_process_step(atl_chain_t* const chain)
 /** 
  * @brief Chain step function proc
  */
-static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const step)
+static bool asc_chain_step_function_proc(asc_chain_t* chain, chain_step_t* const step)
 {
   switch(step->state) 
   {
-     case ATL_CHAIN_STEP_IDLE: 
-          ATL_DEBUG(chain->ctx, "[ATL][INFO] Starting step '%s'", step->name); // Start executing the function
-          step->state = ATL_CHAIN_STEP_RUNNING;
-          if(!step->action.func.function(chain->ctx, atl_chain_step_cb, step->action.func.param, chain))
+     case ASC_CHAIN_STEP_IDLE: 
+          ASC_DEBUG(chain->ctx, "[ASC][INFO] Starting step '%s'", step->name); // Start executing the function
+          step->state = ASC_CHAIN_STEP_RUNNING;
+          if(!step->action.func.function(chain->ctx, asc_chain_step_cb, step->action.func.param, chain))
           {
-            ATL_DEBUG(chain->ctx, "[ATL][ERROR] Failed to start step '%s'", step->name);
-            step->state = ATL_CHAIN_STEP_ERROR;
+            ASC_DEBUG(chain->ctx, "[ASC][ERROR] Failed to start step '%s'", step->name);
+            step->state = ASC_CHAIN_STEP_ERROR;
             step->execution_count++;
           }
           break; 
-     case ATL_CHAIN_STEP_RUNNING: // Waiting for callback - do nothing this cycle
+     case ASC_CHAIN_STEP_RUNNING: // Waiting for callback - do nothing this cycle
           break;
-     case ATL_CHAIN_STEP_SUCCESS: 
-          step->state = ATL_CHAIN_STEP_IDLE;
+     case ASC_CHAIN_STEP_SUCCESS: 
+          step->state = ASC_CHAIN_STEP_IDLE;
           step->execution_count = 0; 
-          if(!atl_chain_execute_step_jump(chain, step->action.func.success_target)) // Jump to success target
+          if(!asc_chain_execute_step_jump(chain, step->action.func.success_target)) // Jump to success target
           {
             chain->is_running = false;
             return false;
           }
           break;
-     case ATL_CHAIN_STEP_ERROR: 
-          ATL_DEBUG(chain->ctx, "[ATL][ERROR] Step '%s' failed (attempt %u/%u)", step->name, step->execution_count, step->action.func.max_retries);  // Function completed with error
+     case ASC_CHAIN_STEP_ERROR: 
+          ASC_DEBUG(chain->ctx, "[ASC][ERROR] Step '%s' failed (attempt %u/%u)", step->name, step->execution_count, step->action.func.max_retries);  // Function completed with error
           if(step->execution_count < step->action.func.max_retries) // Check if we should retry
           { 
-            step->state = ATL_CHAIN_STEP_IDLE;
-            ATL_DEBUG(chain->ctx, "[ATL][INFO] Retrying '%s'", step->name);
+            step->state = ASC_CHAIN_STEP_IDLE;
+            ASC_DEBUG(chain->ctx, "[ASC][INFO] Retrying '%s'", step->name);
           } 
           else 
           {
-            step->state = ATL_CHAIN_STEP_IDLE;
+            step->state = ASC_CHAIN_STEP_IDLE;
             step->execution_count = 0; 
-            if(!atl_chain_execute_step_jump(chain, step->action.func.error_target)) 
+            if(!asc_chain_execute_step_jump(chain, step->action.func.error_target)) 
             {
               chain->is_running = false;
               return false;
@@ -311,14 +311,14 @@ static bool atl_chain_step_function_proc(atl_chain_t* chain, chain_step_t* const
 /** 
  * @brief Chain step exec proc
  */
-static bool atl_chain_step_exec_proc(atl_chain_t* chain, chain_step_t* const step)
+static bool asc_chain_step_exec_proc(asc_chain_t* chain, chain_step_t* const step)
 {
   if(step->action.exec.function) // Exec are executed synchronously
   {
     bool exec_result = step->action.exec.function();
-    ATL_DEBUG(chain->ctx, "[ATL][INFO] Execution '%s': %s", step->name, exec_result ? "true" : "false");
+    ASC_DEBUG(chain->ctx, "[ASC][INFO] Execution '%s': %s", step->name, exec_result ? "true" : "false");
     const char *target = exec_result ? step->action.exec.true_target : step->action.exec.false_target;  // Jump based on exec result
-    if(!atl_chain_execute_step_jump(chain, target)) 
+    if(!asc_chain_execute_step_jump(chain, target)) 
     {
       chain->is_running = false;
       return false;
@@ -326,7 +326,7 @@ static bool atl_chain_step_exec_proc(atl_chain_t* chain, chain_step_t* const ste
   } 
   else 
   {
-    ATL_DEBUG(chain->ctx, "[ATL][INFO] Execution '%s' has no function", step->name);
+    ASC_DEBUG(chain->ctx, "[ASC][INFO] Execution '%s' has no function", step->name);
     chain->is_running = false;
     return false;
   }  
@@ -336,23 +336,23 @@ static bool atl_chain_step_exec_proc(atl_chain_t* chain, chain_step_t* const ste
 /** 
  * @brief Chain step loop start proc
  */
-static bool atl_chain_step_loop_start_proc(atl_chain_t* chain, chain_step_t* const step)
+static bool asc_chain_step_loop_start_proc(asc_chain_t* chain, chain_step_t* const step)
 {
   if(chain->loop_stack_ptr < chain->loop_stack_size) // Start of loop - push current position to stack
   {
-    if(step->state == ATL_CHAIN_STEP_IDLE) 
+    if(step->state == ASC_CHAIN_STEP_IDLE) 
     {
       chain->loop_stack[chain->loop_stack_ptr].start_step_index = chain->current_step;
       chain->loop_stack[chain->loop_stack_ptr].iteration_count = 0;
       chain->loop_stack_ptr++;
-      step->state = ATL_CHAIN_STEP_SUCCESS;
-      ATL_DEBUG(chain->ctx, "[ATL][INFO] Loop start, iterations: %u", step->action.loop_count);
+      step->state = ASC_CHAIN_STEP_SUCCESS;
+      ASC_DEBUG(chain->ctx, "[ASC][INFO] Loop start, iterations: %u", step->action.loop_count);
     }
     chain->current_step++;
   } 
   else 
   {
-    ATL_DEBUG(chain->ctx, "[ATL][ERROR] Loop stack overflow!", NULL);
+    ASC_DEBUG(chain->ctx, "[ASC][ERROR] Loop stack overflow!", NULL);
     chain->is_running = false;
     return false;
   }
@@ -362,32 +362,32 @@ static bool atl_chain_step_loop_start_proc(atl_chain_t* chain, chain_step_t* con
 /** 
  * @brief Chain step loop end proc
  */
-static bool atl_chain_step_loop_end_proc(atl_chain_t* chain, chain_step_t* const step)
+static bool asc_chain_step_loop_end_proc(asc_chain_t* chain, chain_step_t* const step)
 {
   (void)step;
   if(chain->loop_stack_ptr > 0) // End of loop - check if we should continue looping
   {
-    atl_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
+    asc_loop_stack_item_t *current_loop = &chain->loop_stack[chain->loop_stack_ptr - 1];
     chain_step_t *loop_start = &chain->steps[current_loop->start_step_index];
     current_loop->iteration_count++;
 
     if(loop_start->action.loop_count == 0 || current_loop->iteration_count < loop_start->action.loop_count) // 0 = infinite loop, otherwise check iteration count
     {
       chain->current_step = current_loop->start_step_index;
-      ATL_DEBUG(chain->ctx, "[ATL][INFO] Loop iteration %u", current_loop->iteration_count);
+      ASC_DEBUG(chain->ctx, "[ASC][INFO] Loop iteration %u", current_loop->iteration_count);
     } 
     else 
     {
       chain->loop_stack_ptr--;
-      loop_start->state = ATL_CHAIN_STEP_IDLE;
+      loop_start->state = ASC_CHAIN_STEP_IDLE;
       current_loop->iteration_count = 0;
       chain->current_step++;
-      ATL_DEBUG(chain->ctx, "[ATL][INFO] Loop completed after %u iterations", current_loop->iteration_count);
+      ASC_DEBUG(chain->ctx, "[ASC][INFO] Loop completed after %u iterations", current_loop->iteration_count);
     }
   }
   else 
   {
-    ATL_DEBUG(chain->ctx, "[ATL][ERROR] Loop end without start!", NULL);
+    ASC_DEBUG(chain->ctx, "[ASC][ERROR] Loop end without start!", NULL);
     chain->is_running = false;
     return false;
   }
@@ -397,19 +397,19 @@ static bool atl_chain_step_loop_end_proc(atl_chain_t* chain, chain_step_t* const
 /** 
  * @brief Chain step delay proc
  */
-static bool atl_chain_step_delay_proc(atl_chain_t* chain, chain_step_t* const step)
+static bool asc_chain_step_delay_proc(asc_chain_t* chain, chain_step_t* const step)
 {
-  #ifndef ATL_TEST
+  #ifndef ASC_TEST
   if(!step->action.delay.start) 
   {
-    ATL_DEBUG(chain->ctx, "[ATL][INFO] Chain step delay %d ms", step->action.delay.value);
-    ATL_DEBUG(chain->ctx, "[ATL][INFO] Wait....", NULL);
-    step->action.delay.start = atl_get_cur_time(chain->ctx);
+    ASC_DEBUG(chain->ctx, "[ASC][INFO] Chain step delay %d ms", step->action.delay.value);
+    ASC_DEBUG(chain->ctx, "[ASC][INFO] Wait....", NULL);
+    step->action.delay.start = asc_get_cur_time(chain->ctx);
   }
-  if(atl_get_cur_time(chain->ctx) >= (step->action.delay.start + step->action.delay.value)) 
+  if(asc_get_cur_time(chain->ctx) >= (step->action.delay.start + step->action.delay.value)) 
   #endif
   {
-    step->state = ATL_CHAIN_STEP_IDLE;
+    step->state = ASC_CHAIN_STEP_IDLE;
     step->action.delay.start = 0;
     chain->current_step++;
   }
@@ -424,29 +424,29 @@ static bool atl_chain_step_delay_proc(atl_chain_t* chain, chain_step_t* const st
  ** @param ctx        core context
  ** @return Pointer to created chain, NULL on error
  *******************************************************************************/
-atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count, atl_context_t* const ctx) 
+asc_chain_t* asc_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count, asc_context_t* const ctx) 
 {
-  DBC_REQUIRE(600, atl_get_init(ctx).init);
-  DBC_REQUIRE(601, atl_get_init(ctx).init);
+  DBC_REQUIRE(600, asc_get_init(ctx).init);
+  DBC_REQUIRE(601, asc_get_init(ctx).init);
   DBC_REQUIRE(602, name);
   DBC_REQUIRE(603, steps);
   DBC_REQUIRE(604, step_count > 0);
     
   // Calculate required loop stack size based on actual loop nesting
-  uint32_t required_stack_size = atl_chain_cal_max_loop_depth(steps, step_count);
+  uint32_t required_stack_size = asc_chain_cal_max_loop_depth(steps, step_count);
   
   // Allocate memory for chain structure
-  atl_chain_t *chain = (atl_chain_t*)atl_malloc(ctx, sizeof(atl_chain_t));
+  asc_chain_t *chain = (asc_chain_t*)asc_malloc(ctx, sizeof(asc_chain_t));
   if(!chain) 
   {
     return NULL;
   }
   
   // Allocate memory for step copy (ensures steps survive function return)
-  chain_step_t *steps_copy = (chain_step_t*)atl_malloc(ctx, step_count * sizeof(chain_step_t));
+  chain_step_t *steps_copy = (chain_step_t*)asc_malloc(ctx, step_count * sizeof(chain_step_t));
   if(!steps_copy) 
   {
-    atl_deinit(ctx);
+    asc_deinit(ctx);
     return NULL;
   }
   
@@ -454,7 +454,7 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
   memcpy(steps_copy, steps, step_count * sizeof(chain_step_t));
   
   // Initialize chain structure
-  memset(chain, 0, sizeof(atl_chain_t));
+  memset(chain, 0, sizeof(asc_chain_t));
   chain->name = name;
   chain->steps = steps_copy;
   chain->step_count = step_count;
@@ -462,17 +462,17 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
   chain->ctx = ctx;
 
   // Allocate loop stack with calculated size
-  chain->loop_stack = (atl_loop_stack_item_t*)atl_malloc(ctx, chain->loop_stack_size * sizeof(atl_loop_stack_item_t));  
+  chain->loop_stack = (asc_loop_stack_item_t*)asc_malloc(ctx, chain->loop_stack_size * sizeof(asc_loop_stack_item_t));  
   if(!chain->loop_stack) 
   {
-    atl_deinit(ctx);
+    asc_deinit(ctx);
     return NULL;
   }
 
-  memset(chain->loop_stack, 0, chain->loop_stack_size * sizeof(atl_loop_stack_item_t));
+  memset(chain->loop_stack, 0, chain->loop_stack_size * sizeof(asc_loop_stack_item_t));
 
-  ATL_DEBUG(chain->ctx, "[ATL][INFO] Created chain '%s' with %u steps, loop stack: %u, memory used: %d/%d", 
-             name, step_count, required_stack_size, o1heapGetDiagnostics(atl_get_init(ctx).heap).allocated, o1heapGetDiagnostics(atl_get_init(ctx).heap).capacity);
+  ASC_DEBUG(chain->ctx, "[ASC][INFO] Created chain '%s' with %u steps, loop stack: %u, memory used: %d/%d", 
+             name, step_count, required_stack_size, o1heapGetDiagnostics(asc_get_init(ctx).heap).allocated, o1heapGetDiagnostics(asc_get_init(ctx).heap).capacity);
   return chain;
 }
 
@@ -482,15 +482,15 @@ atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const 
  ** @param  chain Chain to destroy
  ** @retval none
  *******************************************************************************/
-void atl_chain_destroy(atl_chain_t* const chain) 
+void asc_chain_destroy(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(701, chain);
-  DBC_REQUIRE(702, atl_get_init(chain->ctx).init);
-  if(chain->steps) atl_free(chain->ctx, chain->steps);
-  if(chain->loop_stack) atl_free(chain->ctx, chain->loop_stack);
-  atl_free(chain->ctx, chain);
-  ATL_DEBUG(chain->ctx, "[ATL][INFO] Chain destroyed, memory used: %d/%d", 
-             o1heapGetDiagnostics(atl_get_init(chain->ctx).heap).allocated, o1heapGetDiagnostics(atl_get_init(chain->ctx).heap).capacity);
+  DBC_REQUIRE(702, asc_get_init(chain->ctx).init);
+  if(chain->steps) asc_free(chain->ctx, chain->steps);
+  if(chain->loop_stack) asc_free(chain->ctx, chain->loop_stack);
+  asc_free(chain->ctx, chain);
+  ASC_DEBUG(chain->ctx, "[ASC][INFO] Chain destroyed, memory used: %d/%d", 
+             o1heapGetDiagnostics(asc_get_init(chain->ctx).heap).allocated, o1heapGetDiagnostics(asc_get_init(chain->ctx).heap).capacity);
 }
 
 /*******************************************************************************
@@ -498,12 +498,12 @@ void atl_chain_destroy(atl_chain_t* const chain)
  ** @param chain Chain to start
  ** @return true if started successfully, false otherwise
  *******************************************************************************/
-bool atl_chain_start(atl_chain_t* const chain) 
+bool asc_chain_start(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(801, chain);
-  atl_chain_reset_state(chain);
+  asc_chain_reset_state(chain);
   chain->is_running = true;
-  ATL_DEBUG(chain->ctx, "[ATL][INFO] Chain '%s' started", chain->name);
+  ASC_DEBUG(chain->ctx, "[ASC][INFO] Chain '%s' started", chain->name);
   return true;
 }
 
@@ -512,11 +512,11 @@ bool atl_chain_start(atl_chain_t* const chain)
  ** @param chain Chain to stop
  ** @retval none
  *******************************************************************************/
-void atl_chain_stop(atl_chain_t* const chain) 
+void asc_chain_stop(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(1001, chain);
   chain->is_running = false;
-  ATL_DEBUG(chain->ctx, "[ATL][INFO] Chain '%s' stopped", chain->name);
+  ASC_DEBUG(chain->ctx, "[ASC][INFO] Chain '%s' stopped", chain->name);
 }
 
 /*******************************************************************************
@@ -524,11 +524,11 @@ void atl_chain_stop(atl_chain_t* const chain)
  ** @param chain Chain to reset
  ** @retval none
  *******************************************************************************/
-void atl_chain_reset(atl_chain_t* const chain) 
+void asc_chain_reset(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(1101, chain);
-  atl_chain_reset_state(chain);
-  ATL_DEBUG(chain->ctx, "[ATL][INFO] Chain '%s' reset", chain->name);
+  asc_chain_reset_state(chain);
+  ASC_DEBUG(chain->ctx, "[ASC][INFO] Chain '%s' reset", chain->name);
 }
 
 /*******************************************************************************
@@ -536,11 +536,11 @@ void atl_chain_reset(atl_chain_t* const chain)
  ** @param chain Chain to execute
  ** @return true if chain should continue, false if completed or error
  *******************************************************************************/
-bool atl_chain_run(atl_chain_t* const chain) 
+bool asc_chain_run(asc_chain_t* const chain) 
 {
   DBC_REQUIRE(1201, chain);
   if(!chain->is_running) return false;    
-  bool res = atl_chain_process_step(chain);
+  bool res = asc_chain_process_step(chain);
   return res;
 }
 
@@ -549,7 +549,7 @@ bool atl_chain_run(atl_chain_t* const chain)
  ** @param chain Chain to check
  ** @return true if running, false otherwise
  *******************************************************************************/
-bool atl_chain_is_running(const atl_chain_t* const chain) 
+bool asc_chain_is_running(const asc_chain_t* const chain) 
 {
   DBC_REQUIRE(1301, chain);
   bool res = chain->is_running;
@@ -561,7 +561,7 @@ bool atl_chain_is_running(const atl_chain_t* const chain)
  ** @param chain Chain
  ** @return Current step index
  *******************************************************************************/
-uint32_t atl_chain_get_current_step(const atl_chain_t* const chain) 
+uint32_t asc_chain_get_current_step(const asc_chain_t* const chain) 
 {
   DBC_REQUIRE(1401, chain);
   uint32_t res = chain->current_step;
@@ -573,7 +573,7 @@ uint32_t atl_chain_get_current_step(const atl_chain_t* const chain)
  ** @param chain Chain
  ** @return Current step name or NULL if not available
  *******************************************************************************/
-const char* atl_chain_get_current_step_name(const atl_chain_t* const chain) 
+const char* asc_chain_get_current_step_name(const asc_chain_t* const chain) 
 {
   DBC_REQUIRE(1402, chain);
   DBC_REQUIRE(1403, chain->current_step < chain->step_count);

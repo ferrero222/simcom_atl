@@ -1,18 +1,18 @@
-/*******************************************************************************
- *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
- *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
- *                           ║╚╝║──║║──║║──                                    *
- *                           ║╔╗║──║║──║║──                                    *
- *                           ║║║║──║║──║╚═╗                                    *
- *                           ╚╝╚╝──╚╝──╚══╝                                    *  
+/******************************************************************************
+ *                              _    ____   ____                              *
+ *                   ======    / \  / ___| / ___| ======       (c)03.10.2025  *
+ *                   ======   / _ \ \___ \| |     ======           v1.0.0     *
+ *                   ======  / ___ \ ___) | |___  ======                      *
+ *                   ====== /_/   \_\____/ \____| ======                      *  
+ *                                                                            *
  ******************************************************************************/
 /*******************************************************************************
  * Include files
  ******************************************************************************/
-#include "atl_port.h"
-#include "atl_core.h"
+#include "asc_port.h"
+#include "asc_core.h"
 
-#ifndef ATL_TEST
+#ifndef ASC_TEST
   #include "stdarg.h"
   #include <stdio.h>
   #include "hc32f460_utility.h"
@@ -56,7 +56,7 @@ DBC_NORETURN void DBC_fault_handler(char const* module, int label)
  ** @param  none
  ** @return none
  ******************************************************************************/
-static void atl_crit_enter(void) 
+static void asc_crit_enter(void) 
 { 
   //__disable_irq();
 }
@@ -66,7 +66,7 @@ static void atl_crit_enter(void)
  ** @param  none
  ** @return none
  ******************************************************************************/
-static void atl_crit_exit(void)  
+static void asc_crit_exit(void)  
 {
   //__enable_irq();
 }
@@ -76,12 +76,12 @@ static void atl_crit_exit(void)
  ** @param  none
  ** @return none
  ******************************************************************************/
-#ifndef ATL_TEST
-void atl_printf_safe(atl_context_t* const ctx, const char *fmt, ...) 
+#ifndef ASC_TEST
+void asc_printf_safe(asc_context_t* const ctx, const char *fmt, ...) 
 {
   if(!ctx) return;
-  atl_init_t atl = atl_get_init(ctx); 
-  if(!atl.atl_printf) return;
+  asc_init_t atl = asc_get_init(ctx); 
+  if(!atl.asc_printf) return;
   va_list args;
   va_start(args, fmt);
   char buffer[512];
@@ -143,7 +143,7 @@ void atl_printf_safe(atl_context_t* const ctx, const char *fmt, ...)
         escaped[sizeof(escaped)-2] = '\n';
         escaped[sizeof(escaped)-1] = '\0';
       }
-      atl.atl_printf(escaped);
+      atl.asc_printf(escaped);
     }
     total_processed += fragment_len;
     va_end(args);
@@ -157,12 +157,12 @@ void atl_printf_safe(atl_context_t* const ctx, const char *fmt, ...)
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_printf_from_ring(atl_context_t* const ctx, ringslice_t rs_me, char* text)
+void asc_printf_from_ring(asc_context_t* const ctx, ringslice_t rs_me, char* text)
 {
   int data_len = ringslice_len(&rs_me);
   int wrap_len = (rs_me.first + data_len > rs_me.buf_size) ? rs_me.first + data_len - rs_me.buf_size : 0;
   int first_len = data_len - wrap_len;
-  ATL_DEBUG(ctx, "[ATL][INFO] %s %.*s%.*s", text, first_len, &rs_me.buf[rs_me.first], wrap_len, &rs_me.buf[0]);
+  ASC_DEBUG(ctx, "[ASC][INFO] %s %.*s%.*s", text, first_len, &rs_me.buf[rs_me.first], wrap_len, &rs_me.buf[0]);
 }
 
 #endif
@@ -172,25 +172,25 @@ void atl_printf_from_ring(atl_context_t* const ctx, ringslice_t rs_me, char* tex
  ** @param  none
  ** @return none
  ******************************************************************************/
-#ifndef ATL_TEST
-static volatile uint32_t atl_crit_counter = 0;
+#ifndef ASC_TEST
+static volatile uint32_t asc_crit_counter = 0;
 #endif
 
-void _atl_crit_enter(void) 
+void _asc_crit_enter(void) 
 { 
-  #ifndef ATL_TEST
-  atl_crit_enter();
-  atl_crit_counter++;
+  #ifndef ASC_TEST
+  asc_crit_enter();
+  asc_crit_counter++;
   #endif
 }
 
-void _atl_crit_exit(void)  
+void _asc_crit_exit(void)  
 {
-  #ifndef ATL_TEST
-  if(atl_crit_counter > 0) 
+  #ifndef ASC_TEST
+  if(asc_crit_counter > 0) 
   {
-    atl_crit_counter--;
-    if (atl_crit_counter == 0) atl_crit_exit();
+    asc_crit_counter--;
+    if (asc_crit_counter == 0) asc_crit_exit();
   }
   #endif
 }

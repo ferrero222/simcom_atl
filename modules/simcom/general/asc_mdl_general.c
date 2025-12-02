@@ -1,16 +1,16 @@
-/*******************************************************************************
- *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
- *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
- *                           ║╚╝║──║║──║║──                                    *
- *                           ║╔╗║──║║──║║──                                    *
- *                           ║║║║──║║──║╚═╗                                    *
- *                           ╚╝╚╝──╚╝──╚══╝                                    *  
+/******************************************************************************
+ *                              _    ____   ____                              *
+ *                   ======    / \  / ___| / ___| ======       (c)03.10.2025  *
+ *                   ======   / _ \ \___ \| |     ======           v1.0.0     *
+ *                   ======  / ___ \ ___) | |___  ======                      *
+ *                   ====== /_/   \_\____/ \____| ======                      *  
+ *                                                                            *
  ******************************************************************************/
 /*******************************************************************************
  * Include files
  ******************************************************************************/
-#include "atl_core.h"
-#include "atl_mdl_general.h"
+#include "asc_core.h"
+#include "asc_mdl_general.h"
 #include "dbc_assert.h"
 
 /*******************************************************************************
@@ -22,7 +22,7 @@
 /*******************************************************************************
  * Local function prototypes ('static')
  ******************************************************************************/
-static void atl_mdl_general_ceng_cb(ringslice_t rs_data, bool result, void* const data);
+static void asc_mdl_general_ceng_cb(ringslice_t rs_data, bool result, void* const data);
 
 /*******************************************************************************
  * Local types definitions
@@ -42,14 +42,14 @@ static void atl_mdl_general_ceng_cb(ringslice_t rs_data, bool result, void* cons
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_modem_reset(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
+bool asc_mdl_modem_reset(asc_context_t* const ctx, const asc_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  asc_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT+CFUN=1,1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 2, 150, 0, 0, NULL, NULL, ATL_NO_ARG),
+    ASC_ITEM("AT+CFUN=1,1"ASC_CMD_CRLF, NULL, ASC_PARCE_SIMCOM, 2, 150, 0, 0, NULL, NULL, ASC_NO_ARG),
   };
-  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
+  if(!asc_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
@@ -62,21 +62,21 @@ bool atl_mdl_modem_reset(atl_context_t* const ctx, const atl_entity_cb_t cb, con
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_modem_init(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
+bool asc_mdl_modem_init(asc_context_t* const ctx, const asc_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  asc_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {
-    ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, ATL_PARCE_SIMCOM, 5, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT"ATL_CMD_CRLF,   NULL, ATL_PARCE_SIMCOM, 5, 100, 0, 1, NULL, NULL, ATL_NO_ARG),  
-    ATL_ITEM("ATE1"ATL_CMD_CRLF, NULL, ATL_PARCE_SIMCOM, 5, 100, 0, 0, NULL, NULL, ATL_NO_ARG),  
+    ASC_ITEM("AT"ASC_CMD_CRLF,   NULL, ASC_PARCE_SIMCOM, 5, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+    ASC_ITEM("AT"ASC_CMD_CRLF,   NULL, ASC_PARCE_SIMCOM, 5, 100, 0, 1, NULL, NULL, ASC_NO_ARG),  
+    ASC_ITEM("ATE1"ASC_CMD_CRLF, NULL, ASC_PARCE_SIMCOM, 5, 100, 0, 0, NULL, NULL, ASC_NO_ARG),  
   };
-  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
+  if(!asc_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 
 /*******************************************************************************
- ** @brief  Function to get real time data info about modem. @atl_mdl_rtd_t
+ ** @brief  Function to get real time data info about modem. @asc_mdl_rtd_t
  **         will be passed to the data paramater in callback. Get it there.
  ** @param  ctx    core context
  ** @param  cb     cb when proc will be done. Here is NULL
@@ -85,34 +85,34 @@ bool atl_mdl_modem_init(atl_context_t* const ctx, const atl_entity_cb_t cb, cons
  **                end of execution. Can be NULL
  ** @return true - proc started, false - smthg is wrong
  ******************************************************************************/
-bool atl_mdl_rtd(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
+bool asc_mdl_rtd(asc_context_t* const ctx, const asc_entity_cb_t cb, const void* const param, void* const meta)
 {
   (void)param;
-  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  asc_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
   {   
-    ATL_ITEM("AT+GSN"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
-    ATL_ITEM("AT+GMM"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_id)),  
-    ATL_ITEM("AT+GMR"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "Revision:%29[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_rev)),                
-    ATL_ITEM("AT+CCLK?"ATL_CMD_CRLF,  "+CCLK", ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ATL_ARG(atl_mdl_rtd_t, modem_clock)),          
-    ATL_ITEM("AT+CCID"ATL_CMD_CRLF,      NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%21[^\x0d]", ATL_ARG(atl_mdl_rtd_t, sim_iccid)),             
-    ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,  "+COPS", ATL_PARCE_SIMCOM, 20, 100, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
-    ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,     "+CSQ", ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                 "+CSQ: %d", ATL_ARG(atl_mdl_rtd_t, sim_rssi)),             
-    ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
-    ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, atl_mdl_general_ceng_cb,    NULL, ATL_NO_ARG),                         
+    ASC_ITEM("AT+GSN"ASC_CMD_CRLF,       NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ASC_ARG(asc_mdl_rtd_t, modem_imei)),
+    ASC_ITEM("AT+GMM"ASC_CMD_CRLF,       NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ASC_ARG(asc_mdl_rtd_t, modem_id)),  
+    ASC_ITEM("AT+GMR"ASC_CMD_CRLF,       NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "Revision:%29[^\x0d]", ASC_ARG(asc_mdl_rtd_t, modem_rev)),                
+    ASC_ITEM("AT+CCLK?"ASC_CMD_CRLF,  "+CCLK", ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ASC_ARG(asc_mdl_rtd_t, modem_clock)),          
+    ASC_ITEM("AT+CCID"ASC_CMD_CRLF,      NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%21[^\x0d]", ASC_ARG(asc_mdl_rtd_t, sim_iccid)),             
+    ASC_ITEM("AT+COPS?"ASC_CMD_CRLF,  "+COPS", ASC_PARCE_SIMCOM, 20, 100, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ASC_ARG(asc_mdl_rtd_t, sim_operator)),            
+    ASC_ITEM("AT+CSQ"ASC_CMD_CRLF,     "+CSQ", ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                 "+CSQ: %d", ASC_ARG(asc_mdl_rtd_t, sim_rssi)),             
+    ASC_ITEM("AT+CENG=3"ASC_CMD_CRLF,    NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ASC_NO_ARG),                
+    ASC_ITEM("AT+CENG?"ASC_CMD_CRLF,     NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 0, asc_mdl_general_ceng_cb,    NULL, ASC_NO_ARG),                         
   };
-  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), meta)) return false;
+  if(!asc_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, sizeof(asc_mdl_rtd_t), meta)) return false;
   return true;
 }
 
 /**
  *  @brief ceng cb
  */
-static void atl_mdl_general_ceng_cb(ringslice_t rs_data, bool result, void* const data)
+static void asc_mdl_general_ceng_cb(ringslice_t rs_data, bool result, void* const data)
 {
   if(!result) return;
   if(ringslice_is_empty(&rs_data)) return;
   bool header_skip = false;
-  atl_mdl_rtd_t* rtd = (atl_mdl_rtd_t*)data;
+  asc_mdl_rtd_t* rtd = (asc_mdl_rtd_t*)data;
   while(ringslice_scanf(&rs_data, "+CENG: %d,\"%d,%d,%x,%x,", 
                         &rtd->modem_lbs[rtd->lbs_cnt].cell, &rtd->modem_lbs[rtd->lbs_cnt].mcc,
                         &rtd->modem_lbs[rtd->lbs_cnt].mnc, &rtd->modem_lbs[rtd->lbs_cnt].lac,

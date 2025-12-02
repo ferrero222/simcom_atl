@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug ATL Tests",
+            "name": "Debug ASC Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/tests/build/simcom_atl",
+            "program": "${workspaceFolder}/tests/build/simcom_asc",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/tests",

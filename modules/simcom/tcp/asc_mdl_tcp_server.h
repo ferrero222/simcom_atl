@@ -1,13 +1,13 @@
-/*******************************************************************************
- *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
- *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
- *                           ║╚╝║──║║──║║──                                    *
- *                           ║╔╗║──║║──║║──                                    *
- *                           ║║║║──║║──║╚═╗                                    *
- *                           ╚╝╚╝──╚╝──╚══╝                                    *  
+/******************************************************************************
+ *                              _    ____   ____                              *
+ *                   ======    / \  / ___| / ___| ======       (c)03.10.2025  *
+ *                   ======   / _ \ \___ \| |     ======           v1.0.0     *
+ *                   ======  / ___ \ ___) | |___  ======                      *
+ *                   ====== /_/   \_\____/ \____| ======                      *  
+ *                                                                            *
  ******************************************************************************/
-#ifndef __ATL_MDL_TCP_SERVER_H
-#define __ATL_MDL_TCP_SERVER_H
+#ifndef __ASC_MDL_TCP_SERVER_H
+#define __ASC_MDL_TCP_SERVER_H
 
 /*******************************************************************************
  * Include files
@@ -22,7 +22,7 @@
 /*******************************************************************************
  * Global variable definitions (declared in header file with 'extern')
  ******************************************************************************/
-typedef void (*atl_stream_data_cb)(uint8_t* data, uint16_t len);
+typedef void (*asc_stream_data_cb)(uint8_t* data, uint16_t len);
 
 typedef struct {
   uint8_t* buffer;           // Accumulation buffer
@@ -31,7 +31,7 @@ typedef struct {
   int16_t expected_len;      // Expected payload length (-1 if unknown)
   uint16_t header_len;       // Parsed header length
   bool packet_in_progress;   // Packet parsing in progress flag
-} atl_tcp_stream_ctx_t;
+} asc_tcp_stream_ctx_t;
 
 /*******************************************************************************
  * Local function prototypes ('static')
@@ -51,13 +51,13 @@ typedef struct {
  ** @param  packet_size  Max packet size
  ** @return true if success, false otherwise
  ******************************************************************************/
-bool atl_tcp_stream_ctx_init(atl_context_t* const atl_ctx,  atl_tcp_stream_ctx_t* stream_ctx, uint16_t packet_size);
+bool asc_tcp_stream_ctx_init(asc_context_t* const asc_ctx,  asc_tcp_stream_ctx_t* stream_ctx, uint16_t packet_size);
 
 /*******************************************************************************
  ** @brief  Cleanup TCP stream context
  ** @param  ctx          Pointer to context
  ******************************************************************************/
-void atl_tcp_stream_ctx_cleanup(atl_context_t* const atl_ctx, atl_tcp_stream_ctx_t* stream_ctx);
+void asc_tcp_stream_ctx_cleanup(asc_context_t* const asc_ctx, asc_tcp_stream_ctx_t* stream_ctx);
 
 /*******************************************************************************
  ** @brief  Handle TCP stream data
@@ -67,6 +67,6 @@ void atl_tcp_stream_ctx_cleanup(atl_context_t* const atl_ctx, atl_tcp_stream_ctx
  ** @param  cb           Callback when full packet found
  ** @return true if data processed successfully
  ******************************************************************************/
-bool atl_mld_tcp_server_stream_data_handler(atl_context_t* const atl_ctx,  atl_tcp_stream_ctx_t* stream_ctx, uint8_t* data, uint16_t len, atl_stream_data_cb cb);
+bool asc_mld_tcp_server_stream_data_handler(asc_context_t* const asc_ctx,  asc_tcp_stream_ctx_t* stream_ctx, uint8_t* data, uint16_t len, asc_stream_data_cb cb);
 
- #endif //__ATL_MDL_TCP_SERVER_H 
+ #endif //__ASC_MDL_TCP_SERVER_H 

@@ -37,7 +37,7 @@
 
 #-----------------------------------------------------------------------------
 # project name:
-PROJECT := simcom_atl
+PROJECT := simcom_asc
 ET_DIR  := ../libs/embedded-test/et
 
 # list of all source directories used by this project
@@ -72,16 +72,16 @@ INCLUDES := -I. \
 # C source files...
 C_SRCS := \
 	o1heap.c \
-	atl_chain.c \
-	atl_core.c \
-	atl_mdl_general.c \
-	atl_mdl_sms.c \
-	atl_mdl_tcp.c \
-	atl_mdl_tcp_server.c \
+	asc_chain.c \
+	asc_core.c \
+	asc_mdl_general.c \
+	asc_mdl_sms.c \
+	asc_mdl_tcp.c \
+	asc_mdl_tcp_server.c \
 	ringslice.c \
 	ringslice_scanf.c \
 	test.c \
-	atl_port.c \
+	asc_port.c \
 	et.c \
 	et_host.c
 
@@ -92,7 +92,7 @@ LIB_DIRS :=
 LIBS     :=
 
 # defines...
-DEFINES  := -DATL_TEST
+DEFINES  := -DASC_TEST
 
 #============================================================================
 # Typically you should not need to change anything below this line

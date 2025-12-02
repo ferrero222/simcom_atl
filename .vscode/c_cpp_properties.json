@@ -16,7 +16,7 @@
                 "${workspaceFolder}/tests"
             ],
             "defines": [
-                "ATL_TEST",
+                "ASC_TEST",
             ],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c11",

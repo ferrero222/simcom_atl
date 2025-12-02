@@ -1,388 +1,389 @@
-# Документация ATL
+[English](README.md) | [Russian](README.ru.md)
 
-Библиотека предлагет конструктор и методы для простого создания любых одиночных, групповых АТ команд, автоматический парсинг их ответов, а также создание логических цепочек выполнения групповых команд для реализации различных сценариев работы с любым вазимодействующим устройством.
+# ASC (Async Serial Commander) Documentation
 
-## 1. Особенности и свойства
+The framework offers a constructor and methods for easily creating any single or grouped commands, creating and embedding automatic parsers, and building logical execution chains of grouped commands to implement various interaction scenarios with any external device, using any interfaces without being tied to hardware implementation.
 
-- **Асинхронность**: Отсутствие блокирования и ожидания системы.
-- **Управление командами**: АПИ для создания и отправки групп AT-команд, построения сложных логических цепочек.
-- **Гибкость**: Возможность создания любого типа команды, с различной комбинацией параметров.
-- **Память**: Использование пользовательского динамического аллокатора памяти с поддержкой выравнивания и защитой от фрагментации O1heap. [GitHub](https://github.com/pavel-kirienko/o1heap)
-- **Обработка ошибок**: Design by Contract (DBC) для надежной проверки ошибок.   [GitHub](https://github.com/QuantumLeaps/DBC-for-embedded-C)
-- **Потокобезопасность**: Защита критических секций для многопоточных приложений.
-- **Поддержка URC**: Обработка URC для асинхронных событий.
-- **Тестирование**: Embedded тесты от QLP. [GitHub](https://github.com/QuantumLeaps/Embedded-Test)
-- **Срезы**: Использование кольцевых срезов вместо прямого копирования буфера. [GitHub](https://github.com/ferrero222/ringslice/tree/dev)
-- **Модульность**: Набор предлагаемых, расширяемых готовых модулей групповых ат команд под контретные внешние устройства.
-- **Расширяемость**: Возможность адаптирования и внедрения новых парсеров для поддержки любого формата команд.
-- **Контекстность**: Возможность создания одновременно нескольких контекстов библиотеки для параллельной работы сразу с несколькими устройствами.
+## 1. Features and Properties
 
-Протестировано с: SIM868....
+*   **Portability**: Completely independent of hardware and platform. The framework implements only pure logic.
+*   **Asynchronicity**: No system blocking or waiting.
+*   **Command Management**: API for creating and sending command groups, building complex logical chains.
+*   **Flexibility**: Ability to create any type of command with various parameter combinations.
+*   **Memory**: Use of a custom dynamic memory allocator with alignment support and O1heap fragmentation protection. [GitHub](https://github.com/pavel-kirienko/o1heap)
+*   **Error Handling**: Design by Contract (DBC) for robust error checking. [GitHub](https://github.com/QuantumLeaps/DBC-for-embedded-C)
+*   **Thread Safety**: Critical section protection for multithreaded applications.
+*   **URC Support**: URC handling for asynchronous events.
+*   **Testing**: Embedded tests from QLP. [GitHub](https://github.com/QuantumLeaps/Embedded-Test)
+*   **Slices**: Use of ring slices instead of direct buffer copying. [GitHub](https://github.com/ferrero222/ringslice/tree/dev)
+*   **Modularity**: A set of offered, extensible, ready-made modules of grouped commands for specific external devices.
+*   **Extensibility**: Ability to adapt and integrate new parsers to support any command format.
+*   **Context Awareness**: Ability to create multiple library contexts simultaneously for parallel work with several devices.
 
-## 2. Настройка и предварительные требования
+Tested with: SIM868....
 
-### Базовая конфигурация
+## 2. Configuration and Prerequisites
 
-Необходимо определить свой кольцевой буфер и указатели:
+### Basic Configuration
+
+You need to define your own ring buffer and pointers:
 
 ```c
 typedef struct {
-  uint8_t *buffer;      
-  uint16_t size;   
-  uint16_t head;       
-  uint16_t tail;       
-  uint16_t count;     
-} atl_ring_buffer_t;
+  uint8_t *buffer;
+  uint16_t size;
+  uint16_t head;
+  uint16_t tail;
+  uint16_t count;
+} asc_ring_buffer_t;
 ```
-Далее определяем глобально контекст:
+Next, define the context globally:
 
 ```c
-atl_context_t ctx = {0};
+asc_context_t ctx = {0};
 ```
 
-Инициализируем данный контекст:
+Initialize this context:
 
 ```c
-atl_init(
-    &ctx,                     // Контекст
-    your_printf_function,     // Пользовательская printf для отладки
-    your_write_function,      // Функция записи в интерфейс  
-    your_ring_buffer_struct,  // Структура кольцевого буфера
+asc_init(
+    &ctx,                     // Context
+    your_printf_function,     // User printf for debugging
+    your_write_function,      // Write function for the interface
+    your_ring_buffer_struct,  // Ring buffer structure
 );
 ```
 
-### Параметры конфигурации
+### Configuration Parameters
 
-В файле atl_port.c необходимо описать обработчики критических секций для защиты от параллельного доступа, а также обработчик исключений:
+In the file `asc_port.c`, you need to describe the critical section handlers for parallel access protection, as well as an exception handler:
 
 ```c
-DBC_NORETURN void DBC_fault_handler(char const* module, int label) 
+DBC_NORETURN void DBC_fault_handler(char const* module, int label)
 {
   (void)module;
   (void)label;
-  while (1) 
+  while (1)
   {
     /* Typically you would trigger a system reset or safe state here */
   }
 }
 
-static void atl_crit_enter(void) 
-{ 
+static void asc_crit_enter(void)
+{
   __disable_irq();
 }
 
-static void atl_crit_exit(void)  
+static void asc_crit_exit(void)
 {
   __enable_irq();
 }
 ```
 
-В файле atl_core.h можно настроить параметры:
+In the file `asc_core.h`, you can configure parameters:
 
 ```c
-#define ATL_MAX_ITEMS_PER_ENTITY  50     //Max amount of AT cmds in one group
-#define ATL_ENTITY_QUEUE_SIZE     10     //Max amount of groups 
-#define ATL_URC_QUEUE_SIZE        10     //Amount of handled URC
-#define ATL_MEMORY_POOL_SIZE      4096   //Memory pool for custom heap
-#define ATL_URC_FREQ_CHECK        10     //Check urc each ATL_URC_FREQ_CHECK*10ms
- 
-#ifndef ATL_TEST 
-  #define ATL_DEBUG_ENABLED       1      //Recommend to turn on DEBUG logs
+#define ASC_MAX_ITEMS_PER_ENTITY  50     //Max amount of AT cmds in one group
+#define ASC_ENTITY_QUEUE_SIZE     10     //Max amount of groups
+#define ASC_URC_QUEUE_SIZE        10     //Amount of handled URC
+#define ASC_MEMORY_POOL_SIZE      4096   //Memory pool for custom heap
+#define ASC_URC_FREQ_CHECK        10     //Check urc each ASC_URC_FREQ_CHECK*10ms
+
+#ifndef ASC_TEST
+  #define ASC_DEBUG_ENABLED       1      //Recommend to turn on DEBUG logs
 #endif
 ```
 
-Основная функция обработки должна вызываться для каждого контекста, каждые 10ms в системном таймере:
+The main processing function must be called for each context every 10ms in the system timer:
 
 ```c
 void timer_10ms_handler(void) {
-  atl_core_proc(&ctx1);
-  atl_core_proc(&ctx2);
+  asc_core_proc(&ctx1);
+  asc_core_proc(&ctx2);
   ...
 }
 ```
 
-## 3. АТ команды
+## 3. Commands
 
-В файле `atl_core.h` представлено АПИ для работы с АТ командами и самим ядром библиотеки, содержащее:
+The file `asc_core.h` presents the API for working with commands and the library core itself, containing:
 
-- `atl_entity_enqueue`
-- `atl_entity_dequeue` 
-- `atl_urc_enqueue`
-- `atl_urc_dequeue`
-- `atl_core_proc`
-- `atl_get_init`
-- `atl_get_cur_time`
-- `atl_malloc`
-- `atl_free`
+*   `asc_entity_enqueue`
+*   `asc_entity_dequeue`
+*   `asc_urc_enqueue`
+*   `asc_urc_dequeue`
+*   `asc_core_proc`
+*   `asc_get_init`
+*   `asc_get_cur_time`
+*   `asc_malloc`
+*   `asc_free`
 
-Подробнее о функциях и их параметрах в самом файле. Разберем некоторые примеры создания и использования АТ команд.
+For more details about the functions and their parameters, see the file itself. Let's look at some examples of creating and using commands.
 
-### Пример 1, групповые команды без форматирования ответа
+### Example 1, grouped AT commands for SIMCOM without response formatting
 
 ```c
-atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+asc_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
 {
-  ATL_ITEM("AT+CIPMODE?"ATL_CMD_CRLF,        "+CIPMODE: 0", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMODE=0"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMUX?"ATL_CMD_CRLF,          "+CIPMUX: 0", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPMUX=0"ATL_CMD_CRLF,                 NULL, ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,   "STATE: IP START", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CSTT=\"\",\"\",\"\""ATL_CMD_CRLF,      NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIICR"ATL_CMD_CRLF,                    NULL, ATL_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP GPRSACT", ATL_PARCE_SIMCOM,  3, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIFSR"ATL_CMD_CRLF,           ATL_CMD_FORCE, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPHEAD?"ATL_CMD_CRLF,        "+CIPHEAD: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPHEAD=1"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSRIP?"ATL_CMD_CRLF,        "+CIPSRIP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSRIP=1"ATL_CMD_CRLF,                NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSHOWTP?"ATL_CMD_CRLF,    "+CIPSHOWTP: 1", ATL_PARCE_SIMCOM,  1, 100, 1, 0, NULL, NULL, ATL_NO_ARG),
-  ATL_ITEM("AT+CIPSHOWTP=1"ATL_CMD_CRLF,              NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ATL_NO_ARG),
+  ASC_ITEM("AT+CIPMODE?"ASC_CMD_CRLF,        "+CIPMODE: 0", ASC_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPMODE=0"ASC_CMD_CRLF,                NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPMUX?"ASC_CMD_CRLF,          "+CIPMUX: 0", ASC_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPMUX=0"ASC_CMD_CRLF,                 NULL, ASC_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSTATUS"ASC_CMD_CRLF,   "STATE: IP START", ASC_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CSTT=\"\",\"\",\"\""ASC_CMD_CRLF,      NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSTATUS"ASC_CMD_CRLF, "STATE: IP GPRSACT", ASC_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIICR"ASC_CMD_CRLF,                    NULL, ASC_PARCE_SIMCOM, 30, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSTATUS"ASC_CMD_CRLF, "STATE: IP GPRSACT", ASC_PARCE_SIMCOM,  3, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIFSR"ASC_CMD_CRLF,           ASC_CMD_FORCE, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPHEAD?"ASC_CMD_CRLF,        "+CIPHEAD: 1", ASC_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPHEAD=1"ASC_CMD_CRLF,                NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSRIP?"ASC_CMD_CRLF,        "+CIPSRIP: 1", ASC_PARCE_SIMCOM,  1, 100, 1, 2, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSRIP=1"ASC_CMD_CRLF,                NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSHOWTP?"ASC_CMD_CRLF,    "+CIPSHOWTP: 1", ASC_PARCE_SIMCOM,  1, 100, 1, 0, NULL, NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CIPSHOWTP=1"ASC_CMD_CRLF,              NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 0, NULL, NULL, ASC_NO_ARG),
 };
-if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
+if(!asc_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
 ```
 
-### Пример 2, групповые команды с форматированием ответа
+### Example 2, grouped AT commands for SIMCOM with response formatting
 
 ```c
-atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
-{   
-  ATL_ITEM("AT+GSN"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_imei)),
-  ATL_ITEM("AT+GMM"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_id)),  
-  ATL_ITEM("AT+GMR"ATL_CMD_CRLF,       NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "Revision:%29[^\x0d]", ATL_ARG(atl_mdl_rtd_t, modem_rev)),                
-  ATL_ITEM("AT+CCLK?"ATL_CMD_CRLF,  "+CCLK", ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ATL_ARG(atl_mdl_rtd_t, modem_clock)),          
-  ATL_ITEM("AT+CCID"ATL_CMD_CRLF,      NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%21[^\x0d]", ATL_ARG(atl_mdl_rtd_t, sim_iccid)),             
-  ATL_ITEM("AT+COPS?"ATL_CMD_CRLF,  "+COPS", ATL_PARCE_SIMCOM, 20, 100, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ATL_ARG(atl_mdl_rtd_t, sim_operator)),            
-  ATL_ITEM("AT+CSQ"ATL_CMD_CRLF,     "+CSQ", ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                 "+CSQ: %d", ATL_ARG(atl_mdl_rtd_t, sim_rssi)),             
-  ATL_ITEM("AT+CENG=3"ATL_CMD_CRLF,    NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ATL_NO_ARG),                
-  ATL_ITEM("AT+CENG?"ATL_CMD_CRLF,     NULL, ATL_PARCE_SIMCOM, 10, 100, 0, 0, atl_mdl_general_ceng_cb,    NULL, ATL_NO_ARG),                         
+asc_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+{
+  ASC_ITEM("AT+GSN"ASC_CMD_CRLF,       NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ASC_ARG(asc_mdl_rtd_t, modem_imei)),
+  ASC_ITEM("AT+GMM"ASC_CMD_CRLF,       NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%15[^\x0d]", ASC_ARG(asc_mdl_rtd_t, modem_id)),
+  ASC_ITEM("AT+GMR"ASC_CMD_CRLF,       NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "Revision:%29[^\x0d]", ASC_ARG(asc_mdl_rtd_t, modem_rev)),
+  ASC_ITEM("AT+CCLK?"ASC_CMD_CRLF,  "+CCLK", ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,      "+CCLK: \"%21[^\"]\"", ASC_ARG(asc_mdl_rtd_t, modem_clock)),
+  ASC_ITEM("AT+CCID"ASC_CMD_CRLF,      NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,               "%21[^\x0d]", ASC_ARG(asc_mdl_rtd_t, sim_iccid)),
+  ASC_ITEM("AT+COPS?"ASC_CMD_CRLF,  "+COPS", ASC_PARCE_SIMCOM, 20, 100, 0, 1, NULL, "+COPS: 0, 0,\"%49[^\"]\"", ASC_ARG(asc_mdl_rtd_t, sim_operator)),
+  ASC_ITEM("AT+CSQ"ASC_CMD_CRLF,     "+CSQ", ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                 "+CSQ: %d", ASC_ARG(asc_mdl_rtd_t, sim_rssi)),
+  ASC_ITEM("AT+CENG=3"ASC_CMD_CRLF,    NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 1, NULL,                       NULL, ASC_NO_ARG),
+  ASC_ITEM("AT+CENG?"ASC_CMD_CRLF,     NULL, ASC_PARCE_SIMCOM, 10, 100, 0, 0, asc_mdl_general_ceng_cb,    NULL, ASC_NO_ARG),
 };
-if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, sizeof(atl_mdl_rtd_t), meta)) return false;
+if(!asc_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, sizeof(asc_mdl_rtd_t), meta)) return false;
 ```
 
-### Параметры АТ команды
+### Command Parameters
 
-Рассмотрим отдельно каждый указываемый параметр АТ команды и разберем что происходит:
+Let's examine each specified command parameter individually and understand what happens:
 
-- **ATL_ITEM** - макрос для заполнения структуры, используйте для добавления АТ команды в группу.
-- **[REQ]** - сам запрос, состоит из конкатенации АТ команды и ATL_CMD_CRLF, в данном случае является строковым литералом, но может быть и массивом символов.
-- **[PREFIX]** - строковый литерал который будет искаться в ответе. Можно не указывать.
-- **[PARCE_TYPE]** - тип используемого парсера, читайте ниже.
-- **[FORMAT]** - формат парсинга ответа для SSCANF, используется вместе с VA_ARGS, полученные данные будут собраны в соответствии с этим форматом, положены в аргументы и переданы в коллбек группы. Можно не указывать.
-- **[RPT]** - количество повторов в случае возникновения ошибки.
-- **[WAIT]** - таймер ожидания ответа в 10мс.
-- **[STEPERROR]** - в случае возникновения ошибки у команды мы можем перескочить на несколько шагов вперед или назад внутри группы, либо ничего не делать. 0 завершает выполнение всей группы
-- **[STEPOK]** - как и в случае ошибки, но тут в случае успеха можем прошагать на какую-либо конкретную АТ команду.  0 завершает выполнение всей группы
-- **[CB]** - коллбек на АТ команду, будет вызван по результату выполнения АТ команды. В него же передаются полученные форматом данные. Можно не указывать
-- **[VA_ARG]** - аргументы для формата в виде ATL_ARG, где мы указываем какая структура и какое поле будет использоваться чтобы сохранить данные из формата. Можно не указывать. Максимум 6.
+*   **ASC_ITEM** - Macro for filling the structure, use it to add a command to a group.
+*   **[REQ]** - The request itself, consisting of the concatenation of the command and `ASC_CMD_CRLF`. In this case, it's a string literal, but it can also be a character array.
+*   **[PREFIX]** - String literal to search for in the response. Can be omitted.
+*   **[PARCE_TYPE]** - Type of parser used, read below.
+*   **[FORMAT]** - Response parsing format for SSCANF, used together with `VA_ARGS`. Retrieved data will be assembled according to this format, placed into arguments, and passed to the group callback. Can be omitted.
+*   **[RPT]** - Number of repetitions in case of an error.
+*   **[WAIT]** - Response wait timer in 10ms units.
+*   **[STEPERROR]** - In case of a command error, we can skip several steps forward or backward within the group, or do nothing. 0 terminates the entire group.
+*   **[STEPOK]** - Similar to error, but here in case of success we can step to a specific command. 0 terminates the entire group.
+*   **[CB]** - Callback for the command, called upon command execution result. Data obtained via the format is also passed to it. Can be omitted.
+*   **[VA_ARG]** - Arguments for the format in the form of `ASC_ARG`, where we specify which structure and which field will be used to store the formatted data. Can be omitted. Maximum 6.
 
-### Параметры функции atl_entity_enqueue
+### Parameters of the asc_entity_enqueue function
 
 ```c
-bool atl_entity_enqueue(atl_context_t* const ctx, const atl_item_t* const item, const uint8_t item_amount, const atl_entity_cb_t cb, uint16_t data_size, void* const meta)ж
+bool asc_entity_enqueue(asc_context_t* const ctx, const asc_item_t* const item, const uint8_t item_amount, const asc_entity_cb_t cb, uint16_t data_size, void* const meta);
 ```
 
-- **ctx** - глобальный контекст для которого создается группа.
-- **item** - группа АТ команд.
-- **item_amount** - размер структуры команд.
-- **cb** - коллбек на всю группу, который будет вызван по исполнению этой группы. Можно не указывать
-- **data_size** - размер структуры данных которая будет создана динамически, автоматически, для сохранения данных указанных в полях [FORMAT] и [VA_ARGS], указатель на эту структуру вернется в коллбек на группу а после исполнения память для него будет очищена. Может не указываться (0).
-- **meta** - указатель на некоторые дополнительные мета данные группы. Передаются напрямую в коллбек выполнения и никак не обрабатываются библиотекой. Можно не указывать.
+*   **ctx** - Global context for which the group is created.
+*   **item** - Command group.
+*   **item_amount** - Size of the command structure.
+*   **cb** - Callback for the entire group, which will be called upon execution of this group. Can be omitted.
+*   **data_size** - Size of the data structure that will be created dynamically, automatically, to save data specified in the [FORMAT] and [VA_ARGS] fields. A pointer to this structure will be returned in the group callback, and after execution, its memory will be cleared. Can be omitted (0).
+*   **meta** - Pointer to some additional group metadata. Passed directly to the execution callback and not processed by the library in any way. Can be omitted.
 
-### Параметры коллбека на всю группу команд:
+### Parameters of the callback for the entire command group:
 
 ```c
-void (*atl_entity_cb_t)(bool result, void* meta, void* data);
+void (*asc_entity_cb_t)(bool result, void* meta, void* data);
 ```
 
-- **result** - результат.
-- **meta** - те самые мета данные которые мы передавали при создании.
-- **data** - та самая структура которая была создана динамически так как мы указывали размер, либо NULL если мы ничего не указывали.
+*   **result** - Execution result.
+*   **meta** - The same metadata we passed during creation.
+*   **data** - The same data structure that was created dynamically because we specified the size, or NULL if we didn't specify anything.
 
-### Параметры коллбека на АТ команду:
+### Parameters of the callback for a command:
 
 ```c
 (*answ_parce_cb_t)(ringslice_t data_slice, bool result, void* data);
 ```
 
-- **data_slice** - библиотека работает с кольцевым буфером напрямую используя срезы, здесь вернется срез данных для этой АТ команды, если он есть, используйте АПИ библиотеки ringslice чтобы работать с этим срезом. 
-- **result** - результат выполнения.
-- **data** - указатель на ту самую созданную структуру данных для форматирования, если мы указали это при создании.
+*   **data_slice** - The library works directly with the ring buffer using slices. Here, a data slice for this command is returned, if it exists. Use the ringslice library API to work with this slice.
+*   **result** - Execution result.
+*   **data** - Pointer to the same data structure created for formatting, if we specified it during creation.
 
-### Особенности
+### Peculiarities
 
-- Если необходимо получить данные из ответа, но не был передан размер структуры для создания или формат получаемых, то в процессе выполнения сработает ассерт.
-- Для получения полезных данных из ответа и их сбор, библиотека сама создает динамически структуру данных, если все правильно было указано при создании группы команд, передает ее в коллбек выполнения, а затем сама также ее удаляет после завершения. Поэтому если данные нужны какое то время то необходимо скопировать их из коллбека в свою статическую структуру.
-- Иногда заранее неизвестно из чего будет состоять команда и нужно создать ее в реальном времени на стеке, или в каком то временном буфере, а не использовать статический строковый литерал. Так как библиотека работает асинхронно, то нужно следить за тем чтобы этот временный буфер существовал в момент исполнения команды. Чтобы каждый раз не заниматься этим, можно просто указать, чтобы команда сохранилась в память библиотеки используя макрос `ATL_CMD_SAVE`, например: `ATL_CMD_SAVE"AT+CIPMODE?"ATL_CMD_CRLF`. Тоже самое можно применять и для префикса.
-- В поле [PREFIX] можно указывать более сложные конструкции для проверки сразу нескольких строк и префиксов:
-  - Используйте `|` для операций ИЛИ: `"+CREG: 0,1|+CREG: 0,5"`
-  - Используйте `&` для операций И: `"+IPD&SEND OK"`
-- Также в поле [PREFIX] можно указать макрос-литерал `ATL_CMD_FORCE` который будет указывать что данная команда или данные должна/ы быть просто отправлена/ы, без парсинга и ожидания ответа. Остальные поля кроме [STEPOK] не будут никак использованы и их содержимое может быть любым.
-- В папке modules содержатся некоторые файлы и реализации уже готовых групп ат команд.
-- В папке tests есть make файл который запускает тесты хосте для проверки логики вне зависимсоти от микроконтроллера. Можно запустить его через консоль или отладить через VS code, попробовать добавить свои или посмотреть как происходит процесс выполнения готовых тестов, чтобы понять как что работает.
-- Коллбек на АТ команду получает срез на данные, это сделано для того чтобы можно было написать собственный парсер данных, в случае если стандартного форматирования недостаточно, пример такого можно увидеть в готовой функции atl_mdl_rtd, там структура данных динамически создается библиотекой и в коллбеке на команду мы вручную парсим ее данные нужным способом и кладем их в эту структуру.
-- В случае обработанных данных библиотека сама передвигает tail и counter вашего кольцевого буфера.
-- В папке examples есть примеры использования.
+*   If you need to get data from the response but did not pass the structure size for creation or the format, an assert will trigger during execution.
+*   To retrieve useful data from the response and collect them, the library itself dynamically creates a data structure if everything was correctly specified when creating the command group, passes it to the execution callback, and then also deletes it after completion. Therefore, if the data is needed for some time, you must copy them from the callback into your static structure.
+*   Sometimes the command composition is not known in advance and needs to be created in real-time on the stack or in some temporary buffer, rather than using a static string literal. Since the library works asynchronously, you must ensure that this temporary buffer exists at the moment of command execution. To avoid dealing with this each time, you can simply specify that the command should be saved to the library's memory using the `ASC_CMD_SAVE` macro, for example: `ASC_CMD_SAVE"AT+CIPMODE?"ASC_CMD_CRLF`. The same can be applied to the prefix.
+*   In the [PREFIX] field, you can specify more complex constructions to check multiple lines and prefixes at once:
+    *   Use `|` for OR operations: `"+CREG: 0,1|+CREG: 0,5"`
+    *   Use `&` for AND operations: `"+IPD&SEND OK"`
+*   Also, in the [PREFIX] field, you can specify the macro-literal `ASC_CMD_FORCE`, which indicates that this command or data should simply be sent without parsing or waiting for a response. Other fields except [STEPOK] will not be used at all, and their content can be anything.
+*   The `modules` folder contains some files and implementations of ready-made AT command groups.
+*   The `tests` folder contains a makefile that runs host tests to check logic independently of the microcontroller.
+*   The command callback receives a data slice. This is done so you can write your own data parser if the standard formatting is insufficient. An example of this can be seen in the ready-made function `asc_mdl_rtd`, where the data structure is dynamically created by the library, and in the command callback, we manually parse its data in the desired way and place them into this structure.
+*   In case of processed data, the library itself moves the tail and counter of your ring buffer.
+*   The `examples` folder contains usage examples.
 
+### Parsers
+`ASC_PARCE_SIMCOM`<br>
+Parser for commands in SIMCOM format. This parser works with echo enabled. Usually, the response to commands comes sequentially as: ECHO → RESULT → DATA. Echo must always come first. The parser works similarly, first looking for the command echo, then the execution result, and then the useful data, i.e., it splits the response into three fields: [REQ] [RES] [DATA]. Their combination, presence, and order can vary from command to command, each differently. The internal parser handles only a few combinations and possible cases, which should be sufficient. Let's examine the parameter combinations when creating a command and what responses they support:
 
-### Парсеры 
-`ATL_PARCE_SIMCOM`<br> 
- Парсер команд формата simcom. Данный парсер работает с включенным эхо. Обычно тут ответ на команды приходит последовательно ввиде: ЭХО → РЕЗУЛЬТАТ → ДАННЫЕ. Эхо в любом случае должно идти первым. Парсер работает таким же образом, что сначала ищет эхо команды, потом результат выполнения, а потом полезные данные, т.е. разбивает ответ на три поля: [REQ] [RES] [DATA]. Их комбинация, наличие и порядок могут изменяться от самой команды, у каждой по разному. Внутренний парсер обрабатывает только несколько комбинаций и возможных случаев, которых должно быть достаточно. Рассмотрим комбинации параметров при создании команды и какие ответы они поддерживают:
+| Specified Command Parameters | Required Response Fields for Such Parameters |
+|------------------------------|----------------------------------------------|
+| [REQ] | [REQ] [RES] with OK<br>[REQ] [RES] [DATA] with OK |
+| [REQ] [PREFIX] <br> [REQ] [PREFIX] [FORMAT] [ARG]| [REQ] [RES] [DATA] + prefix and format check (if specified)<br>[REQ] [DATA] + prefix and format check (if specified)<br>[DATA] + prefix and format check (if specified) |
+| [PREFIX] | [DATA] + prefix check |
+| [PREFIX] [FORMAT] [ARG] | [DATA] + prefix and format check |
 
-| Указанные параметры команды | Необходимые поля ответа для таких параметров |
-|-------------------|----------------------------|
-| [REQ] | [REQ] [RES] с OK<br>[REQ] [RES] [DATA] с OK |
-| [REQ] [PREFIX] <br> [REQ] [PREFIX] [FORMAT] [ARG]| [REQ] [RES] [DATA] + проверка префикса и формата(если указан)<br>[REQ] [DATA] + проверка префикса и формата(если указан)<br>[DATA] + проверка префикса и формата(если указан) |
-| [PREFIX] | [DATA] + проверка префикса |
-| [PREFIX] [FORMAT] [ARG] | [DATA] + проверка префикса и формата |
+The [DATA] field is usually framed by CRLF characters — the parser finds boundaries by them, removes them, and works with "clean" data. If [DATA] contains multi-line data with CRLF, the parser will return only the FIRST line.
+For complex cases, it is recommended to write a custom parser via a callback (example: function `asc_mdl_rtd`). Use the table above to correctly create a command, knowing in advance the type of response and what fields it contains.
 
-Поле [DATA] обычно обрамляется символами CRLF — парсер находит границы по ним, удаляет их и работает с "чистыми" данными. Если [DATA] содержит многострочные данные с CRLF, парсер вернёт только ПЕРВУЮ строку.
-Для сложных случаев рекомендуется писать кастомный парсер через коллбек (пример: функция atl_mdl_rtd). Используйте таблицу выше чтобы правильно создать команду, заранее зная тип ответа и какие поля он содержит.
+`ASC_PARCE_RAW`<br>
+Parser for data transmission format commands. Parses raw data simply checking for a match with the [PREFIX] field if specified. Also, if the [FORMAT][ARG] field is specified, the parser will attempt to format and retrieve useful data from the very beginning of this data buffer. The data is not preprocessed but handled as-is, which must be taken into account. The [REQ] field can be omitted.
 
+## 4. Creating Logical Chains
 
-`ATL_PARCE_RAW`<br> 
-Парсер команд формата пердачи данных. Парсит сырые данные просто проверяя их на совпадение с полем [PREFIX] если оно указано. Также если указано поле [FORMAT][ARG], то парсер попытается 
-отформатировать и получить полезные данные с самого начала буфера этих данных. Данные никак не подготавливаются а обрабтываются как есть, это необходимо учитывать. Поле [REQ] можно не указывать.
+Based on command groups (described above), you can create your own algorithms and execution chains. An API is provided in the file `asc_chain.h`:
 
-## 4. Создание логических цепочек
+*   `asc_chain_destroy`
+*   `asc_chain_start`
+*   `asc_chain_stop`
+*   `asc_chain_reset`
+*   `asc_chain_run`
+*   `asc_chain_is_running`
+*   `asc_chain_get_current_step`
+*   `asc_chain_get_current_step_name`
 
-На основе групп АТ команд (о которых было выше) можно создавать собственные алгоритмы и цепочки выполнения. Предоставляется АПИ в файле `atl_chain.h`:
+### Creating Step Functions
 
-- `atl_chain_destroy`
-- `atl_chain_start` 
-- `atl_chain_stop`
-- `atl_chain_reset`
-- `atl_chain_run`
-- `atl_chain_is_running`
-- `atl_chain_get_current_step`
-- `atl_chain_get_current_step_name`
-
-### Создание функций-шагов
-
-Для того чтобы создать цепочку каждая группа команд должна быть обернута в функцию стандартного типа:
+To create a chain, each command group must be wrapped in a function of the standard type:
 
 ```c
-bool (*function)(atl_entity_cb_t cb, void* param, void* ctx);
+bool (*function)(asc_entity_cb_t cb, void* param, void* ctx);
 ```
-Функция должна по результату исполнять передаваемый в нее колбек. 
+The function must, based on the result, execute the callback passed into it.
 
-Например:
+For example:
 
 ```c
-bool atl_mdl_gprs_socket_connect(atl_context_t* const ctx, const atl_entity_cb_t cb, const void* const param, void* const meta)
+bool asc_mdl_gprs_socket_connect(asc_context_t* const ctx, const asc_entity_cb_t cb, const void* const param, void* const meta)
 {
   DBC_REQUIRE(101, param);
-  char cipstart[128] = {0}; 
-  atl_mdl_tcp_server_t* tcp = (atl_mdl_tcp_server_t*)param;
-  snprintf(cipstart, sizeof(cipstart), "%sAT+CIPSTART=\"%s\",\"%s\",\"%s\"%s", ATL_CMD_SAVE, tcp->mode, tcp->ip, tcp->port, ATL_CMD_CRLF); 
-  atl_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
-  { 
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF, "STATE: IP STATUS|STATE: TCP CLOSED", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM(cipstart,                           "CONNECT OK|ALREADY CONNECT", ATL_PARCE_SIMCOM,  6, 500,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSTATUS"ATL_CMD_CRLF,                  "STATE: CONNECT OK", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPSEND?"ATL_CMD_CRLF,                           "+CIPSEND:", ATL_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ATL_NO_ARG),         
-    ATL_ITEM("AT+CIPQSEND?"ATL_CMD_CRLF,                       "+CIPQSEND: 0", ATL_PARCE_SIMCOM,  1, 100,  1, 0, NULL, NULL, ATL_NO_ARG),
-    ATL_ITEM("AT+CIPQSEND=0"ATL_CMD_CRLF,                                NULL, ATL_PARCE_SIMCOM, 10, 100,  0, 0, NULL, NULL, ATL_NO_ARG),
+  char cipstart[128] = {0};
+  asc_mdl_tcp_server_t* tcp = (asc_mdl_tcp_server_t*)param;
+  snprintf(cipstart, sizeof(cipstart), "%sAT+CIPSTART=\"%s\",\"%s\",\"%s\"%s", ASC_CMD_SAVE, tcp->mode, tcp->ip, tcp->port, ASC_CMD_CRLF);
+  asc_item_t items[] = //[REQ][PREFIX][PARCE_TYPE][RPT][WAIT][STEPERROR][STEPOK][CB][FORMAT][...##VA_ARGS]
+  {
+    ASC_ITEM("AT+CIPSTATUS"ASC_CMD_CRLF, "STATE: IP STATUS|STATE: TCP CLOSED", ASC_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ASC_NO_ARG),
+    ASC_ITEM(cipstart,                           "CONNECT OK|ALREADY CONNECT", ASC_PARCE_SIMCOM,  6, 500,  0, 1, NULL, NULL, ASC_NO_ARG),
+    ASC_ITEM("AT+CIPSTATUS"ASC_CMD_CRLF,                  "STATE: CONNECT OK", ASC_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ASC_NO_ARG),
+    ASC_ITEM("AT+CIPSEND?"ASC_CMD_CRLF,                           "+CIPSEND:", ASC_PARCE_SIMCOM, 10, 100,  0, 1, NULL, NULL, ASC_NO_ARG),
+    ASC_ITEM("AT+CIPQSEND?"ASC_CMD_CRLF,                       "+CIPQSEND: 0", ASC_PARCE_SIMCOM,  1, 100,  1, 0, NULL, NULL, ASC_NO_ARG),
+    ASC_ITEM("AT+CIPQSEND=0"ASC_CMD_CRLF,                                NULL, ASC_PARCE_SIMCOM, 10, 100,  0, 0, NULL, NULL, ASC_NO_ARG),
   };
-  if(!atl_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
+  if(!asc_entity_enqueue(ctx, items, sizeof(items)/sizeof(items[0]), cb, 0, meta)) return false;
   return true;
 }
 ```
 
-Где:
-- **ctx** - глобальный контекст для которого создается группа.
-- **cb** - коллбек на всю группу
-- **param** - указатель на входящие параметры для создания АТ команды. Нужно следить чтобы предоставляемая структура существовала все время пока аснихронно выполняется эта группа команд
-- **meta** - указатель на некоторые дополнительные мета данные группы. Передаются напрямую в коллбек выполнения.
+Where:
+*   **ctx** - Global context for which the group is created.
+*   **cb** - Callback for the entire group.
+*   **param** - Pointer to input parameters for creating the command. You must ensure that the provided structure exists all the time while this command group is executing asynchronously.
+*   **meta** - Pointer to some additional group metadata. Passed directly to the execution callback.
 
-Такие функции можно будет использовать в цепочках или отдельно. Наборы уже готовых функций представлены в папке `modules`, можно их использовать и добавлять новые свои.
+Such functions can be used in chains or separately. Sets of ready-made functions are presented in the `modules` folder; you can use them and add your own.
 
-### Создание цепочки
+### Creating a Chain
 
-Давайте создадим пример цепочки на основании представленных в библиотеке модулей:
+Let's create an example chain based on the modules provided in the library:
 
 ```c
-chain_step_t tcp_steps[] = 
-{   
+chain_step_t tcp_steps[] =
+{
   //Main
-  ATL_CHAIN("INIT_MODEM", "NEXT", "MODEM_RESTART", atl_mdl_modem_init, NULL, NULL, NULL, 1),
-  ATL_CHAIN("GPRS INIT", "NEXT", "GPRS DEINIT", atl_mdl_gprs_init, NULL, NULL, NULL, 1),
-  ATL_CHAIN("SOCKET CONFIG", "NEXT", "GPRS INIT", atl_mdl_gprs_socket_config, NULL, NULL, NULL, 1),
-  ATL_CHAIN("CONNECT TO SERVER", "NEXT", "SOCKET CONFIG", atl_mdl_gprs_socket_connect, NULL, &atl_server_connect, NULL, 1),
-  ATL_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_rtd, atl_rtd_cb, NULL, NULL, 1),
-  ATL_CHAIN_EXEC("CHECK RTD", "NEXT", "GET RTD", atl_rtd_check),
-  
-  ATL_CHAIN_EXEC("CREATE WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_login),
-  ATL_CHAIN("SEND WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, NULL, &atl_server_data, NULL, 3),
-  
-  ATL_CHAIN_LOOP_START(10),
-    ATL_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_rtd, atl_rtd_cb, NULL, NULL, 1),
-    ATL_CHAIN_EXEC("CREATE WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_server_data_wialon_packet),
-    ATL_CHAIN("SEND WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", atl_mdl_gprs_socket_send_recieve, NULL, &atl_server_data, NULL, 3),
-    ATL_CHAIN_DELAY(1000),
-  ATL_CHAIN_LOOP_END,
-  
-  ATL_CHAIN_EXEC("WIALON DATA CLEAN", "STOP", "HARD RESET", atl_server_data_clean),
-  
+  ASC_CHAIN("INIT_MODEM", "NEXT", "MODEM_RESTART", asc_mdl_modem_init, NULL, NULL, NULL, 1),
+  ASC_CHAIN("GPRS INIT", "NEXT", "GPRS DEINIT", asc_mdl_gprs_init, NULL, NULL, NULL, 1),
+  ASC_CHAIN("SOCKET CONFIG", "NEXT", "GPRS INIT", asc_mdl_gprs_socket_config, NULL, NULL, NULL, 1),
+  ASC_CHAIN("CONNECT TO SERVER", "NEXT", "SOCKET CONFIG", asc_mdl_gprs_socket_connect, NULL, &asc_server_connect, NULL, 1),
+  ASC_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", asc_mdl_rtd, asc_rtd_cb, NULL, NULL, 1),
+  ASC_CHAIN_EXEC("CHECK RTD", "NEXT", "GET RTD", asc_rtd_check),
+
+  ASC_CHAIN_EXEC("CREATE WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", asc_server_data_wialon_login),
+  ASC_CHAIN("SEND WIALON LOGIN", "NEXT", "DISCONNECT FROM SERVER", asc_mdl_gprs_socket_send_recieve, NULL, &asc_server_data, NULL, 3),
+
+  ASC_CHAIN_LOOP_START(10),
+    ASC_CHAIN("GET RTD", "NEXT", "DISCONNECT FROM SERVER", asc_mdl_rtd, asc_rtd_cb, NULL, NULL, 1),
+    ASC_CHAIN_EXEC("CREATE WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", asc_server_data_wialon_packet),
+    ASC_CHAIN("SEND WIALON DATA", "NEXT", "DISCONNECT FROM SERVER", asc_mdl_gprs_socket_send_recieve, NULL, &asc_server_data, NULL, 3),
+    ASC_CHAIN_DELAY(1000),
+  ASC_CHAIN_LOOP_END,
+
+  ASC_CHAIN_EXEC("WIALON DATA CLEAN", "STOP", "HARD RESET", asc_server_data_clean),
+
   //Error
-  ATL_CHAIN("GPRS DEINIT", "GPRS INIT", "MODEM RESTART", atl_mdl_gprs_deinit, NULL, NULL, NULL, 1),
-  ATL_CHAIN("DISCONNECT FROM SERVER", "CONNECT TO SERVER", "GPRS DEINIT", atl_mdl_gprs_socket_disconnect, NULL, NULL, NULL, 1),
-  ATL_CHAIN("MODEM RESTART", "GPRS INIT", "MODEM RESTART", atl_mdl_modem_reset, NULL, NULL, NULL, 1),
-  
+  ASC_CHAIN("GPRS DEINIT", "GPRS INIT", "MODEM RESTART", asc_mdl_gprs_deinit, NULL, NULL, NULL, 1),
+  ASC_CHAIN("DISCONNECT FROM SERVER", "CONNECT TO SERVER", "GPRS DEINIT", asc_mdl_gprs_socket_disconnect, NULL, NULL, NULL, 1),
+  ASC_CHAIN("MODEM RESTART", "GPRS INIT", "MODEM RESTART", asc_mdl_modem_reset, NULL, NULL, NULL, 1),
+
   //Critical
-  ATL_CHAIN_EXEC("HARD RESET", "STOP", "STOP", atl_hard_reset),
+  ASC_CHAIN_EXEC("HARD RESET", "STOP", "STOP", asc_hard_reset),
 };
 
-atl_chain_t* chain = atl_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t), ctx);
-atl_chain_start(chain);
+asc_chain_t* chain = asc_chain_create("TCP", tcp_steps, sizeof(tcp_steps)/sizeof(chain_step_t), ctx);
+asc_chain_start(chain);
 
-while(atl_chain_is_running(chain))
+while(asc_chain_is_running(chain))
 {
-  bool res = atl_chain_run(chain);
-  if(atl_chain_is_running(chain)) atl_chain_destroy(chain);
+  bool res = asc_chain_run(chain);
+  if(asc_chain_is_running(chain)) asc_chain_destroy(chain);
 }
 ```
 
-Данная цепочка единоразово настраивает simcom модем, контекст и соединение, получает данные реального времени, проверяет их, а затем 10 раз начинает собирать и слать эти данные на сервер с периодом в 10 сек с предварительным прохождением авторизации, в случае возникновения ошибки происходит отключение или деинициализация с попыткой повторной реинициализации и подключения или полного рестарта.
+This chain one-time configures the SIMCOM modem, context, and connection, gets real-time data, checks it, and then 10 times starts collecting and sending this data to the server with a period of 10 seconds, after preliminary authorization. In case of an error, disconnection or deinitialization occurs with an attempt to reinitialize and reconnect or a complete restart.
 
-### Параметры цепочки
+### Chain Parameters
 
-Итак, давайте рассмотрим что можно использовать в цепочке и какие параметры туда передавать:
+So, let's look at what can be used in a chain and what parameters can be passed there:
 
-**ATL_CHAIN** - основной макрос для добавления шага выполнения, содержит:
-- **[Name]** - Имя шага.
-- **[Success target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага. "STOP" закончит выполнение цепочки.
-- **[Error target]** - тоже самое что и при успехе только в случае ошибки. 
-- **[Func]** - та самая функция которая будет вызвана для исполнения шага. 
-- **[Cb]** - Коллбек на шаг.
-- **[Param]** - те самые параметры которые будут переданы в указанную функцию когда она начнет исполнятся
-- **[meta]** - те самые мета данные которые мы передавали при создании.
-- **[Retries]** - количество повторов в случае ошибки 
+**ASC_CHAIN** - The main macro for adding an execution step, contains:
+*   **[Name]** - Step name.
+*   **[Success target]** - Name of the step to go to in case of success. You can specify NULL or "NEXT" for step +1, or "PREV" for step -1, or a specific step name. "STOP" will end chain execution.
+*   **[Error target]** - The same as for success, but in case of error.
+*   **[Func]** - The function that will be called to execute the step.
+*   **[Cb]** - Callback for the step.
+*   **[Param]** - The parameters that will be passed to the specified function when it starts executing.
+*   **[meta]** - The metadata that we passed during creation.
+*   **[Retries]** - Number of retries in case of error.
 
-**ATL_CHAIN_EXEC** - макрос для создания и исполнения некоторого действия, можно что то исполнить или проверить. Содержит:
-- **[Name]** - Имя шага.
-- **[True target]** - Имя шага куда идти в случае успеха. Можем указать NULL или "NEXT" для шага на +1 или "PREV" для шага на -1, ну или конкретное имя шага. "STOP" закончит выполнение цепочки.
-- **[False target]** - тоже самое что и при успехе только в случае ошибки.
-- **[Exec func]** - функция для исполнения. Должна быть типа bool (*exec)(void); Ее результат выполнения влияет на следующий переход.
+**ASC_CHAIN_EXEC** - Macro for creating and executing some action, you can execute or check something. Contains:
+*   **[Name]** - Step name.
+*   **[True target]** - Name of the step to go to in case of success. You can specify NULL or "NEXT" for step +1, or "PREV" for step -1, or a specific step name. "STOP" will end chain execution.
+*   **[False target]** - The same as for success, but in case of error.
+*   **[Exec func]** - Function to execute. Must be of type `bool (*exec)(void);` Its execution result affects the next transition.
 
-**ATL_CHAIN_LOOP_START** - макрос для указания начала цикла далее, содержит:
-- **[Iterations]** - Количество итераций цикла. 0 - Бесконечный.
+**ASC_CHAIN_LOOP_START** - Macro to indicate the start of a following loop, contains:
+*   **[Iterations]** - Number of loop iterations. 0 - Infinite.
 
-**ATL_CHAIN_LOOP_END** - макрос для указания конца цикла.
+**ASC_CHAIN_LOOP_END** - Macro to indicate the end of a loop.
 
-**ATL_CHAIN_DELAY** - макрос для создания искусственной задержки, содержит:
-- **[ms]** - время задержки в мс.
+**ASC_CHAIN_DELAY** - Macro to create an artificial delay, contains:
+*   **[ms]** - Delay time in ms.
 
-### Параметры функции atl_entity_enqueue
+### Parameters of the asc_entity_enqueue function
 
 ```c
-atl_chain_t* atl_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count);
+asc_chain_t* asc_chain_create(const char* const name, const chain_step_t* const steps, const uint32_t step_count);
 ```
 
-- **name** - Имя цепочки.
-- **steps** - Сама структура цепочки.
-- **step_count** - Количество шагов в цепочке
+*   **name** - Chain name.
+*   **steps** - The chain structure itself.
+*   **step_count** - Number of steps in the chain.
 
-### Особенности
+### Peculiarities
 
-- Как можно видеть из примера можно создавать вложенные циклы, библиотека реализует и использует собственный динамический стек для работы с ними. Есть поддержка и возможность переходов через циклы, из циклов, в циклы с вложенностью и без, переходить как вперед так и назад, пропуская их обозначающие шаги, ограничений нет, однако, стоит учитывать что одна итерация цикла происходит только в моменте выполнения ATL_CHAIN_LOOP_END для соответствующего цикла. Также нужно следить за отсутствием шагов с одинаковыми именами, в таком случае переход на такой шаг будет выполнен для первого найденного в массиве.
+*   As can be seen from the example, nested loops can be created. The library implements and uses its own dynamic stack to work with them. There is support and the possibility of transitions through loops, from loops, into loops with or without nesting, moving both forward and backward, skipping their denoting steps. There are no restrictions, however, it should be noted that one loop iteration occurs only at the moment of executing `ASC_CHAIN_LOOP_END` for the corresponding loop. Also, ensure there are no steps with the same names; in such a case, the transition to such a step will be performed to the first one found in the array.
+```

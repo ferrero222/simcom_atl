@@ -1,13 +1,13 @@
-/*******************************************************************************
- *                           ╔══╗╔════╗╔╗──                      (c)03.10.2025 *
- *                           ║╔╗║╚═╗╔═╝║║──                          v1.0.0    *
- *                           ║╚╝║──║║──║║──                                    *
- *                           ║╔╗║──║║──║║──                                    *
- *                           ║║║║──║║──║╚═╗                                    *
- *                           ╚╝╚╝──╚╝──╚══╝                                    *  
+/******************************************************************************
+ *                              _    ____   ____                              *
+ *                   ======    / \  / ___| / ___| ======       (c)03.10.2025  *
+ *                   ======   / _ \ \___ \| |     ======           v1.0.0     *
+ *                   ======  / ___ \ ___) | |___  ======                      *
+ *                   ====== /_/   \_\____/ \____| ======                      *  
+ *                                                                            *
  ******************************************************************************/
-#ifndef __ATL_PORT_H
-#define __ATL_PORT_H
+#ifndef __ASC_PORT_H
+#define __ASC_PORT_H
 
 /*******************************************************************************
  * Include files
@@ -18,15 +18,15 @@
 #include <string.h>
 #include <assert.h>
 #include "dbc_assert.h"
-#include "atl_core.h"
+#include "asc_core.h"
 
 /*******************************************************************************
  * Global pre-processor symbols/macros ('#define')
  ******************************************************************************/
-#if ATL_DEBUG_ENABLED
-  #define ATL_DEBUG(ctx, fmt, ...) atl_printf_safe(ctx, fmt, __VA_ARGS__)
+#if ASC_DEBUG_ENABLED
+  #define ASC_DEBUG(ctx, fmt, ...) asc_printf_safe(ctx, fmt, __VA_ARGS__)
 #else
-  #define ATL_DEBUG(ctx, fmt, ...) ((void)0)
+  #define ASC_DEBUG(ctx, fmt, ...) ((void)0)
 #endif
 
 /*******************************************************************************
@@ -53,27 +53,27 @@ DBC_NORETURN void DBC_fault_handler(char const* module, int label);
  ** @param  none
  ** @return none
  ******************************************************************************/
-void _atl_crit_enter(void); 
+void _asc_crit_enter(void); 
 
 /*******************************************************************************
  ** @brief  Weak function to exit critical section
  ** @param  none
  ** @return none
  ******************************************************************************/
-void _atl_crit_exit(void);
+void _asc_crit_exit(void);
 
 /*******************************************************************************
  ** @brief  Printf
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_printf_safe(atl_context_t* const ctx, const char *fmt, ...);
+void asc_printf_safe(asc_context_t* const ctx, const char *fmt, ...);
 
 /*******************************************************************************
  ** @brief  Printf
  ** @param  none
  ** @return none
  ******************************************************************************/
-void atl_printf_from_ring(atl_context_t* const ctx, ringslice_t rs_me, char* text);
+void asc_printf_from_ring(asc_context_t* const ctx, ringslice_t rs_me, char* text);
 
 #endif
