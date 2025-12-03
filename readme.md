@@ -1,6 +1,6 @@
 [English](README.md) | [Russian](README.ru.md)
 
-# ASC (Async Serial Commander) Documentation
+# eASC(Embedded Async Serial Commander) documentation
 
 The framework offers a constructor and methods for easily creating any single or grouped commands, creating and embedding automatic parsers, and building logical execution chains of grouped commands to implement various interaction scenarios with any external device, using any interfaces without being tied to hardware implementation.
 
